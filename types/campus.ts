@@ -9,4 +9,6 @@ export interface Organization {
     role: string;
   };
   type: 'organization' | 'event' | 'tutoring';
+  meetingTime: string;
+  location: string;
 }

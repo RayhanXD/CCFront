@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Platform } from 'react-native';
-import { Building2 } from 'lucide-react-native';
+import { Building2, Clock, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { Organization } from '@/types/campus';
 import AnimatedCard from '@/components/AnimatedCard';
@@ -45,9 +45,22 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
         
         <View style={styles.textContainer}>
           <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">{organization.name}</Text>
-          <Text style={styles.description} numberOfLines={3} ellipsizeMode="tail">
-            {organization.description}
-          </Text>
+          
+          <View style={styles.infoContainer}>
+            <View style={styles.infoRow}>
+              <Clock size={12} color="#666666" />
+              <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="tail">
+                {organization.meetingTime}
+              </Text>
+            </View>
+            
+            <View style={styles.infoRow}>
+              <MapPin size={12} color="#666666" />
+              <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="tail">
+                {organization.location}
+              </Text>
+            </View>
+          </View>
         </View>
       </View>
     </AnimatedCard>
@@ -112,10 +125,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 6,
+    marginBottom: 8,
     lineHeight: 20,
   },
-  description: {
+  infoContainer: {
+    flex: 1,
+    gap: 6,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  infoText: {
     fontSize: 13,
     color: '#666666',
     lineHeight: 18,

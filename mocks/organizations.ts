@@ -11,7 +11,9 @@ export const organizations: Organization[] = [
       name: 'Sindhu Bajjuri',
       role: 'President'
     },
-    type: 'organization'
+    type: 'organization',
+    meetingTime: 'Weekly meetings on Tuesdays at 5:00 PM',
+    location: 'Student Union, Room 2.502'
   },
   {
     id: '2',
@@ -23,7 +25,9 @@ export const organizations: Organization[] = [
       name: 'Syed Zaidi',
       role: 'President'
     },
-    type: 'organization'
+    type: 'organization',
+    meetingTime: 'Bi-weekly meetings on Thursdays at 6:30 PM',
+    location: 'Engineering Building, Lab 3.204'
   },
   {
     id: '3',
@@ -35,7 +39,9 @@ export const organizations: Organization[] = [
       name: 'Alex Johnson',
       role: 'President'
     },
-    type: 'organization'
+    type: 'organization',
+    meetingTime: 'Monthly meetings on first Friday at 4:00 PM',
+    location: 'Business Building, Conference Room A'
   },
   {
     id: '4',
@@ -47,7 +53,9 @@ export const organizations: Organization[] = [
       name: 'Maya Patel',
       role: 'Organizer'
     },
-    type: 'event'
+    type: 'event',
+    meetingTime: 'Saturday, March 15th at 10:00 AM',
+    location: 'Computer Science Building, Room 1.315'
   },
   {
     id: '5',
@@ -59,6 +67,8 @@ export const organizations: Organization[] = [
       name: 'Carlos Rodriguez',
       role: 'Lead Tutor'
     },
-    type: 'tutoring'
+    type: 'tutoring',
+    meetingTime: 'Available Monday-Friday, 2:00-6:00 PM',
+    location: 'Library, Study Room 204'
   }
 ];
