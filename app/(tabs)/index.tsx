@@ -1,7 +1,6 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, StatusBar, Animated, ScrollView, TextInput } from 'react-native';
+import React, { useRef } from 'react';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, StatusBar, Animated, ScrollView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Search, Shuffle, X } from 'lucide-react-native';
 import FilterTabs from '@/components/FilterTabs';
 import OrganizationCard from '@/components/OrganizationCard';
 import TodayEvents from '@/components/TodayEvents';
@@ -14,55 +13,26 @@ import Logo from '@/components/Logo';
 
 export default function HomeScreen() {
   const router = useRouter();
-  const { filteredOrganizations, organizations, setSelectedFilter } = useCampusStore();
+  const { filteredOrganizations } = useCampusStore();
   const { todayEvents } = useEventsStore();
   const { userProfile } = useUserStore();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState(filteredOrganizations);
-  const [isSearching, setIsSearching] = useState(false);
   const scrollY = new Animated.Value(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const recommendationsSectionRef = useRef<View>(null);
 
   const handleCardPress = (id: string) => {
+    // Navigate to organization details
     router.push(`/organization/${id}`);
   };
 
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    setIsSearching(text.length > 0);
-    
-    if (text.trim() === '') {
-      setSearchResults(filteredOrganizations);
-      return;
-    }
-    
-    const filtered = organizations.filter(org => 
-      org.name.toLowerCase().includes(text.toLowerCase()) ||
-      org.description.toLowerCase().includes(text.toLowerCase()) ||
-      org.type.toLowerCase().includes(text.toLowerCase())
-    );
-    
-    setSearchResults(filtered);
-  };
-
-  const clearSearch = () => {
-    setSearchQuery('');
-    setIsSearching(false);
-    setSearchResults(filteredOrganizations);
-  };
-
-  const randomizeResults = () => {
-    const shuffled = [...searchResults].sort(() => Math.random() - 0.5);
-    setSearchResults(shuffled);
-  };
-
-  // Update search results when filtered organizations change
-  React.useEffect(() => {
-    if (!isSearching) {
-      setSearchResults(filteredOrganizations);
-    }
-  }, [filteredOrganizations, isSearching]);
+  const renderItem = ({ item }: { item: any }) => (
+    <View style={styles.cardWrapper}>
+      <OrganizationCard 
+        organization={item} 
+        onPress={handleCardPress} 
+      />
+    </View>
+  );
   
   const scrollToTop = () => {
     scrollViewRef.current?.scrollTo({ y: 0, animated: true });
@@ -77,8 +47,6 @@ export default function HomeScreen() {
       () => {}
     );
   };
-
-  const displayedOrganizations = isSearching ? searchResults : filteredOrganizations;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -119,53 +87,14 @@ export default function HomeScreen() {
         />
         
         <View ref={recommendationsSectionRef} style={styles.recommendationsSection}>
-          <Text style={styles.sectionTitle}>
-            {isSearching ? 'Search Results' : 'Recommended Organizations'}
-          </Text>
-          
-          {/* Search Bar */}
-          <View style={styles.searchContainer}>
-            <View style={styles.searchInputContainer}>
-              <Search size={20} color={Colors.textSecondary} style={styles.searchIcon} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search organizations..."
-                value={searchQuery}
-                onChangeText={handleSearch}
-                placeholderTextColor={Colors.textSecondary}
-              />
-              {searchQuery.length > 0 && (
-                <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-                  <X size={18} color={Colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
-            
-            <TouchableOpacity 
-              style={styles.randomizeButton}
-              onPress={randomizeResults}
-            >
-              <Shuffle size={20} color={Colors.white} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Filter Tabs - only show when not searching */}
-          {!isSearching && <FilterTabs />}
-          
-          {/* Results Count */}
-          {isSearching && (
-            <View style={styles.resultsHeader}>
-              <Text style={styles.resultsCount}>
-                {displayedOrganizations.length} {displayedOrganizations.length === 1 ? 'result' : 'results'}
-              </Text>
-            </View>
-          )}
+          <Text style={styles.sectionTitle}>Recommended Organizations</Text>
+          <FilterTabs />
           
           <View style={styles.divider} />
           
-          {displayedOrganizations.length > 0 ? (
+          {filteredOrganizations.length > 0 ? (
             <View style={styles.gridContainer}>
-              {displayedOrganizations.map((item) => (
+              {filteredOrganizations.map((item) => (
                 <View key={item.id} style={styles.cardWrapper}>
                   <OrganizationCard 
                     organization={item} 
@@ -177,18 +106,13 @@ export default function HomeScreen() {
           ) : (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateText}>
-                {isSearching 
-                  ? `No organizations found matching "${searchQuery}"`
-                  : 'No recommendations found for this filter.'
-                }
+                No recommendations found for this filter.
               </Text>
               <TouchableOpacity 
                 style={styles.emptyStateButton}
-                onPress={isSearching ? clearSearch : () => setSelectedFilter('all')}
+                onPress={() => useCampusStore.getState().setSelectedFilter('all')}
               >
-                <Text style={styles.emptyStateButtonText}>
-                  {isSearching ? 'Clear Search' : 'View All'}
-                </Text>
+                <Text style={styles.emptyStateButtonText}>View All</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -253,50 +177,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.text,
     marginBottom: 12,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    marginBottom: 12,
-    gap: 10,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    height: '100%',
-    fontSize: 16,
-    color: Colors.text,
-  },
-  clearButton: {
-    padding: 4,
-  },
-  randomizeButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.primary,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resultsHeader: {
-    marginBottom: 8,
-  },
-  resultsCount: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
   },
   divider: {
     height: 1,
