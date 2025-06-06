@@ -119,7 +119,6 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
   };
   
   const generateInsight = () => {
-    const userName = userProfile?.name?.split(' ')[0] || 'you';
     const userMajor = userProfile?.major || 'your major';
     const userInterests = userProfile?.interests || [];
     
@@ -128,17 +127,17 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
     
     switch (itemType) {
       case 'organization':
-        personalizedExplanation = `This organization is a ${matchPercentage}% match for ${userName} because it aligns with ${userInterests.length > 0 ? `your interest in ${userInterests[0]}` : 'your academic interests'} and is popular among ${userMajor} students.`;
+        personalizedExplanation = `This organization is a ${matchPercentage}% match for you because it aligns with ${userInterests.length > 0 ? `your interest in ${userInterests[0]}` : 'your academic interests'} and is popular among ${userMajor} students.`;
         socialProof = `Students who joined similar organizations reported a 32% increase in professional networking opportunities and were more likely to find internships in their field.`;
         break;
         
       case 'scholarship':
-        personalizedExplanation = `This scholarship is a ${matchPercentage}% match for ${userName} because it's specifically designed for ${userMajor} students${userInterests.length > 0 ? ` with interests in ${userInterests[0]}` : ''}.`;
+        personalizedExplanation = `This scholarship is a ${matchPercentage}% match for you because it's specifically designed for ${userMajor} students${userInterests.length > 0 ? ` with interests in ${userInterests[0]}` : ''}.`;
         socialProof = `Students with similar profiles who applied for this scholarship had a 40% higher acceptance rate compared to general applications.`;
         break;
         
       case 'event':
-        personalizedExplanation = `This event is a ${matchPercentage}% match for ${userName} because it covers topics relevant to ${userMajor}${userInterests.length > 0 ? ` and your interest in ${userInterests[0]}` : ''}.`;
+        personalizedExplanation = `This event is a ${matchPercentage}% match for you because it covers topics relevant to ${userMajor}${userInterests.length > 0 ? ` and your interest in ${userInterests[0]}` : ''}.`;
         socialProof = `Students who attended similar events reported that the knowledge gained was directly applicable to their coursework and career preparation.`;
         break;
         
