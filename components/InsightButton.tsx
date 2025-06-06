@@ -10,7 +10,7 @@ import {
   Animated,
   Easing
 } from 'react-native';
-import { HelpCircle, X } from 'lucide-react-native';
+import { HelpCircle, X, Info } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -24,6 +24,7 @@ interface InsightButtonProps {
 
 const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemId }: InsightButtonProps) => {
   const [modalVisible, setModalVisible] = useState(false);
+  const [learnMoreVisible, setLearnMoreVisible] = useState(false);
   const [hasBeenClicked, setHasBeenClicked] = useState(false);
   
   // Animation values - separate from parent animations
@@ -127,22 +128,22 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
     
     switch (itemType) {
       case 'organization':
-        personalizedExplanation = `This organization is a ${matchPercentage}% match for you because it aligns with ${userInterests.length > 0 ? `your interest in ${userInterests[0]}` : 'your academic interests'} and is popular among ${userMajor} students.`;
+        personalizedExplanation = `This organization aligns with ${userInterests.length > 0 ? `your interest in ${userInterests[0]}` : 'your academic interests'} and is popular among ${userMajor} students.`;
         socialProof = `Students who joined similar organizations reported a 32% increase in professional networking opportunities and were more likely to find internships in their field.`;
         break;
         
       case 'scholarship':
-        personalizedExplanation = `This scholarship is a ${matchPercentage}% match for you because it's specifically designed for ${userMajor} students${userInterests.length > 0 ? ` with interests in ${userInterests[0]}` : ''}.`;
+        personalizedExplanation = `This scholarship is specifically designed for ${userMajor} students${userInterests.length > 0 ? ` with interests in ${userInterests[0]}` : ''}.`;
         socialProof = `Students with similar profiles who applied for this scholarship had a 40% higher acceptance rate compared to general applications.`;
         break;
         
       case 'event':
-        personalizedExplanation = `This event is a ${matchPercentage}% match for you because it covers topics relevant to ${userMajor}${userInterests.length > 0 ? ` and your interest in ${userInterests[0]}` : ''}.`;
+        personalizedExplanation = `This event covers topics relevant to ${userMajor}${userInterests.length > 0 ? ` and your interest in ${userInterests[0]}` : ''}.`;
         socialProof = `Students who attended similar events reported that the knowledge gained was directly applicable to their coursework and career preparation.`;
         break;
         
       default:
-        personalizedExplanation = `This item is a ${matchPercentage}% match based on your profile and preferences.`;
+        personalizedExplanation = `This item aligns with your profile and preferences.`;
         socialProof = `Students with similar interests have found this valuable for their academic and career development.`;
     }
     
@@ -196,6 +197,10 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
             <View style={styles.modalBody}>
               <Text style={styles.itemName}>{itemName}</Text>
               
+              <View style={styles.matchPercentageContainer}>
+                <Text style={styles.matchPercentage}>{matchPercentage}% Match</Text>
+              </View>
+              
               <View style={styles.insightSection}>
                 <Text style={styles.sectionTitle}>Personalized Match</Text>
                 <Text style={styles.insightText}>{personalizedExplanation}</Text>
@@ -206,10 +211,58 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
                 <Text style={styles.insightText}>{socialProof}</Text>
               </View>
               
-              <View style={styles.matchBadgeContainer}>
-                <View style={styles.matchBadge}>
-                  <Text style={styles.matchText}>{matchPercentage}% Match</Text>
-                </View>
+              <TouchableOpacity 
+                style={styles.learnMoreButton}
+                onPress={() => setLearnMoreVisible(true)}
+              >
+                <Info size={16} color={Colors.primary} />
+                <Text style={styles.learnMoreText}>Learn More</Text>
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={learnMoreVisible}
+        onRequestClose={() => setLearnMoreVisible(false)}
+      >
+        <Pressable 
+          style={styles.modalOverlay}
+          onPress={() => setLearnMoreVisible(false)}
+        >
+          <Pressable style={styles.modalContent} onPress={e => e.stopPropagation()}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>How We Calculate Matches</Text>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={() => setLearnMoreVisible(false)}
+              >
+                <X size={20} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <View style={styles.insightSection}>
+                <Text style={styles.sectionTitle}>Academic Alignment</Text>
+                <Text style={styles.insightText}>We analyze how well the opportunity aligns with your major, academic interests, and career goals.</Text>
+              </View>
+              
+              <View style={styles.insightSection}>
+                <Text style={styles.sectionTitle}>Interest Matching</Text>
+                <Text style={styles.insightText}>Your selected interests are matched against the opportunity's focus areas and activities.</Text>
+              </View>
+              
+              <View style={styles.insightSection}>
+                <Text style={styles.sectionTitle}>Peer Success Data</Text>
+                <Text style={styles.insightText}>We consider outcomes from students with similar profiles who engaged with comparable opportunities.</Text>
+              </View>
+              
+              <View style={styles.insightSection}>
+                <Text style={styles.sectionTitle}>Engagement Patterns</Text>
+                <Text style={styles.insightText}>Historical data shows which opportunities lead to the best outcomes for students like you.</Text>
               </View>
             </View>
           </Pressable>
@@ -290,7 +343,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.text,
+    marginBottom: 12,
+  },
+  matchPercentageContainer: {
+    alignItems: 'center',
     marginBottom: 16,
+  },
+  matchPercentage: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: Colors.primary,
   },
   insightSection: {
     marginBottom: 16,
@@ -306,20 +368,23 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 20,
   },
-  matchBadgeContainer: {
+  learnMoreButton: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    backgroundColor: 'transparent',
     marginTop: 8,
   },
-  matchBadge: {
-    backgroundColor: Colors.primary,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 100,
-  },
-  matchText: {
-    color: Colors.white,
+  learnMoreText: {
+    color: Colors.primary,
     fontSize: 14,
     fontWeight: '600',
+    marginLeft: 6,
   },
 });
 
