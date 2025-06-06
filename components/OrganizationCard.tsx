@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, Platform } from 'react-native';
-import { Building2, Clock, MapPin } from 'lucide-react-native';
+import { Clock, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { Organization } from '@/types/campus';
 import AnimatedCard from '@/components/AnimatedCard';
@@ -39,10 +39,6 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
       </View>
       
       <View style={styles.contentContainer}>
-        <View style={styles.iconContainer}>
-          <Building2 size={14} color={Colors.primary} />
-        </View>
-        
         <View style={styles.textContainer}>
           <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">{organization.name}</Text>
           
@@ -107,15 +103,6 @@ const styles = StyleSheet.create({
     padding: 12,
     flex: 1,
     flexDirection: 'column',
-    gap: 8,
-  },
-  iconContainer: {
-    width: 28,
-    height: 28,
-    borderRadius: 6,
-    backgroundColor: Colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   textContainer: {
     flex: 1,
