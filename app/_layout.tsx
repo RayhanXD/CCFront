@@ -55,17 +55,20 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
-  const { isOnboardingComplete } = useUserStore();
+  const { isOnboardingComplete, userProfile } = useUserStore();
 
   useEffect(() => {
-    const inAuthGroup = segments[0] === "onboarding";
+    const inAuthGroup = segments[0] === "onboarding" || segments[0] === "auth";
+    const isAuthenticated = userProfile && isOnboardingComplete;
 
-    if (!isOnboardingComplete && !inAuthGroup) {
-      router.replace("/onboarding");
-    } else if (isOnboardingComplete && inAuthGroup) {
+    if (!isAuthenticated && !inAuthGroup) {
+      // Redirect to auth if not authenticated
+      router.replace("/auth/signin");
+    } else if (isAuthenticated && inAuthGroup) {
+      // Redirect to main app if authenticated
       router.replace("/");
     }
-  }, [isOnboardingComplete, segments]);
+  }, [isOnboardingComplete, userProfile, segments]);
 
   return (
     <Stack
@@ -85,6 +88,8 @@ function RootLayoutNav() {
       <Stack.Screen name="modal" options={{ presentation: "modal" }} />
       <Stack.Screen name="modals/add-event" options={{ presentation: "modal" }} />
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/signin" options={{ headerShown: false }} />
+      <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
       <Stack.Screen name="profile/edit" options={{ headerShown: true }} />
     </Stack>
   );
