@@ -3,6 +3,14 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile } from '@/types/user';
 import { apiService, UserProfile as ApiUserProfile } from '@/lib/api';
+import { auth } from '@/lib/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut, 
+  onAuthStateChanged, 
+  User
+} from 'firebase/auth';
 
 interface UserState {
   userProfile: UserProfile | null;
@@ -15,6 +23,9 @@ interface UserState {
   updateUserProfile: (updates: Partial<UserProfile>) => void;
   signUp: (userData: ApiUserProfile) => Promise<boolean>;
   signIn: (email: string) => Promise<boolean>;
+  signUpWithEmailPassword: (email: string, password: string, profile: ApiUserProfile) => Promise<boolean>;
+  signInWithEmailPassword: (email: string, password: string) => Promise<boolean>;
+  signOutFirebase: () => Promise<void>;
   loadUserProfile: (email: string) => Promise<boolean>;
   updateUserProfileOnServer: (email: string, updates: Partial<ApiUserProfile>) => Promise<boolean>;
   clearError: () => void;
@@ -100,6 +111,54 @@ export const useUserStore = create<UserState>()(
           });
           return false;
         }
+      },
+
+      signUpWithEmailPassword: async (email: string, password: string, profile: ApiUserProfile) => {
+        set({ isLoading: true, error: null });
+        try {
+          await createUserWithEmailAndPassword(auth, email, password);
+          // Sync profile to backend
+          await apiService.signUp({ ...profile, email });
+          const localProfile: UserProfile = {
+            name: profile.name,
+            email,
+            major: profile.major,
+            year: profile.year,
+            interests: profile.interests,
+            onboardingComplete: true,
+          };
+          set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
+          return true;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Sign up failed', isLoading: false });
+          return false;
+        }
+      },
+
+      signInWithEmailPassword: async (email: string, password: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          await signInWithEmailAndPassword(auth, email, password);
+          const response = await apiService.getProfile(email);
+          const localProfile: UserProfile = {
+            name: response.user.name,
+            email: response.user.email,
+            major: response.user.major,
+            year: response.user.year,
+            interests: response.user.interests,
+            onboardingComplete: true,
+          };
+          set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
+          return true;
+        } catch (error) {
+          set({ error: error instanceof Error ? error.message : 'Sign in failed', isLoading: false });
+          return false;
+        }
+      },
+
+      signOutFirebase: async () => {
+        await signOut(auth);
+        set({ userProfile: null, isOnboardingComplete: false });
       },
       
       loadUserProfile: async (email: string) => {

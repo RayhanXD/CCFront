@@ -23,6 +23,7 @@ export default function SignUpScreen() {
     name: '',
     surname: '',
     email: '',
+    password: '',
     major: '',
     year: '1',
     interests: [] as string[],
@@ -40,7 +41,7 @@ export default function SignUpScreen() {
 
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { signUp, error, clearError } = useUserStore();
+  const { signUpWithEmailPassword, error, clearError } = useUserStore();
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -62,6 +63,10 @@ export default function SignUpScreen() {
       Alert.alert('Error', 'Please select your major');
       return;
     }
+    if (!formData.password.trim() || formData.password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
 
     setIsLoading(true);
     clearError();
@@ -74,7 +79,11 @@ export default function SignUpScreen() {
         major: formData.major.trim(),
       };
 
-      const success = await signUp(userData);
+      const success = await signUpWithEmailPassword(
+        userData.email,
+        formData.password,
+        userData
+      );
       if (success) {
         router.replace('/(tabs)');
       } else {
@@ -146,6 +155,21 @@ export default function SignUpScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                placeholderTextColor={Colors.textSecondary}
+                editable={!isLoading}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Create a password"
+                value={formData.password}
+                onChangeText={(value) => handleInputChange('password', value)}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />

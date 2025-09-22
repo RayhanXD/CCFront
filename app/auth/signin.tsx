@@ -18,9 +18,10 @@ import Logo from '@/components/Logo';
 
 export default function SignInScreen() {
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { signIn, error, clearError } = useUserStore();
+  const { signInWithEmailPassword, error, clearError } = useUserStore();
 
   const handleSignIn = async () => {
     if (!email.trim()) {
@@ -32,12 +33,16 @@ export default function SignInScreen() {
       Alert.alert('Error', 'Please enter a valid email address');
       return;
     }
+    if (!password.trim() || password.length < 6) {
+      Alert.alert('Error', 'Please enter your password (min 6 characters)');
+      return;
+    }
 
     setIsLoading(true);
     clearError();
 
     try {
-      const success = await signIn(email.trim());
+      const success = await signInWithEmailPassword(email.trim(), password);
       if (success) {
         router.replace('/(tabs)');
       } else {
@@ -80,6 +85,21 @@ export default function SignInScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
+                placeholderTextColor={Colors.textSecondary}
+                editable={!isLoading}
+              />
+            </View>
+
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter your password"
+                value={password}
+                onChangeText={setPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                secureTextEntry
                 placeholderTextColor={Colors.textSecondary}
                 editable={!isLoading}
               />
