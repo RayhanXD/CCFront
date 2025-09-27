@@ -54,7 +54,6 @@ export interface ScholarshipData {
   amount: string;
   deadline: string;
   requirements?: string;
-  description?: string;
   [key: string]: any;
 }
 
@@ -211,7 +210,7 @@ class ApiService {
     });
   }
 
-  // Helper method to get scholarship recommendations for a user
+  // Convenience method for getting scholarship recommendations for a user
   async getScholarshipRecommendations(userEmail: string, scholarshipsData: ScholarshipData[]): Promise<ScholarshipResponse> {
     return this.getPersonalizedScholarships({
       user_email: userEmail,

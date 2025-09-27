@@ -26,9 +26,7 @@ export const useScholarshipStore = create<ScholarshipState>()(
       personalizedRecommendations: [],
       isLoadingRecommendations: false,
       recommendationsError: null,
-      
       setSelectedFilter: (filter) => set({ selectedFilter: filter }),
-      
       get filteredScholarships() {
         const filter = get().selectedFilter;
         const scholarships = get().scholarships;
@@ -39,30 +37,25 @@ export const useScholarshipStore = create<ScholarshipState>()(
         
         return scholarships.filter(scholarship => scholarship.type === filter);
       },
-
       getPersonalizedRecommendations: async (userEmail: string, scholarshipsData: ScholarshipData[]) => {
         set({ isLoadingRecommendations: true, recommendationsError: null });
-        
         try {
           const response = await apiService.getScholarshipRecommendations(userEmail, scholarshipsData);
           set({ 
-            personalizedRecommendations: response.recommendations,
+            personalizedRecommendations: response.recommendations, 
             isLoadingRecommendations: false 
           });
         } catch (error) {
-          console.error('Failed to get personalized recommendations:', error);
           set({ 
             recommendationsError: error instanceof Error ? error.message : 'Failed to get recommendations',
             isLoadingRecommendations: false 
           });
         }
       },
-
       clearRecommendations: () => set({ 
         personalizedRecommendations: [], 
         recommendationsError: null 
       }),
-
       clearError: () => set({ recommendationsError: null }),
     }),
     {
