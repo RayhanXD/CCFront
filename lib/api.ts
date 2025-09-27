@@ -49,6 +49,35 @@ export interface TokenVerificationRequest {
   token: string;
 }
 
+export interface ScholarshipData {
+  name: string;
+  amount: string;
+  deadline: string;
+  requirements?: string;
+  description?: string;
+  [key: string]: any;
+}
+
+export interface ScholarshipRecommendation {
+  name: string;
+  amount: string;
+  deadline: string;
+  match_score: number;
+  explanation: string;
+  original_data: ScholarshipData;
+}
+
+export interface ScholarshipRequest {
+  user_email: string;
+  scholarships_data: ScholarshipData[];
+}
+
+export interface ScholarshipResponse {
+  recommendations: ScholarshipRecommendation[];
+  user_email: string;
+  total_recommendations: number;
+}
+
 class ApiService {
   private baseUrl: string;
 
@@ -171,6 +200,22 @@ class ApiService {
     return this.getRecommendations({
       user_email: userEmail,
       category: 'tutoring',
+    });
+  }
+
+  // Get personalized scholarship recommendations using GPT-4
+  async getPersonalizedScholarships(request: ScholarshipRequest): Promise<ScholarshipResponse> {
+    return this.makeRequest('/personalized-scholarships', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  // Helper method to get scholarship recommendations for a user
+  async getScholarshipRecommendations(userEmail: string, scholarshipsData: ScholarshipData[]): Promise<ScholarshipResponse> {
+    return this.getPersonalizedScholarships({
+      user_email: userEmail,
+      scholarships_data: scholarshipsData,
     });
   }
 }

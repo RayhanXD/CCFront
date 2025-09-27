@@ -17,6 +17,7 @@ export const config = {
     VERIFY_TOKEN: '/verify-token',
     PROFILE: '/profile',
     RECOMMENDATIONS: '/recommendations',
+    PERSONALIZED_SCHOLARSHIPS: '/personalized-scholarships',
   },
   
   // Request timeout (in milliseconds)
