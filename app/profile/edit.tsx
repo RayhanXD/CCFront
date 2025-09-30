@@ -5,30 +5,7 @@ import { Stack } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useUserStore } from '@/store/user-store';
 import { Check } from 'lucide-react-native';
-
-// Reuse the interests from the onboarding
-const INTERESTS = [
-  "Academic Clubs",
-  "Sports",
-  "Arts & Culture",
-  "Technology",
-  "Science",
-  "Business",
-  "Social Impact",
-  "Environmental",
-  "Health & Wellness",
-  "Leadership",
-  "Research",
-  "International",
-  "Professional Development",
-  "Entertainment",
-  "Gaming",
-  "Music",
-  "Dance",
-  "Theater",
-  "Media",
-  "Politics"
-];
+import INTERESTS from '@/constants/interests';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -195,27 +172,32 @@ const styles = StyleSheet.create({
   interestsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    marginBottom: 16,
   },
   interestButton: {
+    backgroundColor: Colors.white,
+    borderRadius: 999,
+    paddingVertical: 10,
     paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.border,
-    backgroundColor: Colors.white,
+    marginRight: 8,
+    marginBottom: 12,
   },
   interestButtonSelected: {
     backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
   interestButtonText: {
-    fontSize: 14,
+    fontSize: 15,
+    fontWeight: '500',
     color: Colors.textSecondary,
   },
   interestButtonTextSelected: {
     color: Colors.white,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   saveButton: {
     marginRight: 8,

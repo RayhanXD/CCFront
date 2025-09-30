@@ -7,7 +7,7 @@ import { useUserStore } from '@/store/user-store';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { userProfile } = useUserStore();
+  const { userProfile,signOutFirebase } = useUserStore();
   
   const handleEditProfile = () => {
     router.push('/profile/edit');
@@ -21,6 +21,16 @@ export default function ProfileScreen() {
     // Navigate to settings when implemented
     // router.push('/profile/settings');
   };
+
+  const handleLogout = async () => {
+    try {
+      await signOutFirebase()
+      router.replace('/auth/signin');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }
+  
   
   // Placeholder avatar URL
   const avatarUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=634&q=80';
@@ -122,6 +132,9 @@ export default function ProfileScreen() {
             </View>
           </View>
         </View>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutButtonText}>Logout</Text>
+           </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -312,5 +325,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+
+  logoutButton: {
+    backgroundColor: Colors.logoutButton,
+    padding: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  logoutButtonText: {
+    color: Colors.white,
+    fontSize: 16,
   },
 });

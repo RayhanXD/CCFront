@@ -8,4 +8,5 @@ export default {
   border: '#E5E5E5',
   success: '#4CAF50',
   matchBadge: '#7B5CFF',
+  logoutButton: '#FF7276',
 };
