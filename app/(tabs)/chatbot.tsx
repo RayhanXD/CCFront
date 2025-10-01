@@ -251,6 +251,35 @@ export default function ChatbotScreen() {
     }
   }, [userProfile?.email, messages.length]);
   
+  // Function to parse and render markdown-like formatting
+  const renderFormattedText = (text: string, textStyle: any) => {
+    // Split the text by bold markers (**)
+    const parts = text.split(/\*\*/);
+    
+    // If there are no ** markers, return plain text
+    if (parts.length === 1) {
+      return <Text style={textStyle}>{text}</Text>;
+    }
+    
+    // Create an array of text elements with appropriate styling
+    return (
+      <Text style={textStyle}>
+        {parts.map((part, index) => {
+          // Even indices are regular text, odd indices are bold text
+          const isBold = index % 2 === 1;
+          return (
+            <Text 
+              key={index} 
+              style={isBold ? [textStyle, styles.boldText] : textStyle}
+            >
+              {part}
+            </Text>
+          );
+        })}
+      </Text>
+    );
+  };
+
   // Render a message item
   const renderMessageItem = ({ item }: { item: Message }) => {
     const isUser = item.sender === 'user';
@@ -278,12 +307,10 @@ export default function ChatbotScreen() {
             </Text>
           </View>
           
-          <Text style={[
-            styles.messageText,
-            isUser ? styles.userMessageText : styles.botMessageText
-          ]}>
-            {item.text}
-          </Text>
+          {renderFormattedText(
+            item.text,
+            [styles.messageText, isUser ? styles.userMessageText : styles.botMessageText]
+          )}
         </View>
       </View>
     );
@@ -655,6 +682,9 @@ const styles = StyleSheet.create({
   suggestionText: {
     fontSize: 14,
     color: Colors.text,
+  },
+  boldText: {
+    fontWeight: 'bold',
   },
   loadingContainer: {
     flex: 1,
