@@ -10,17 +10,27 @@ import {
   KeyboardAvoidingView, 
   Platform,
   StatusBar,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert,
+  Animated
 } from 'react-native';
-import { Send, Bot, User, Info } from 'lucide-react-native';
+import { Send, Bot, User, Info, History, Settings } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useChatStore } from '@/store/chat-store';
+import { useUserStore } from '@/store/user-store';
 import { Message } from '@/types/chat';
 import Logo from '@/components/Logo';
+import { chatGPTWebSocket } from '@/lib/chatgpt-websocket';
+import { apiService, ChatGPTMessage } from '@/lib/api';
 
 export default function ChatbotScreen() {
-  const { messages, addMessage, isTyping, setIsTyping } = useChatStore();
+  const { messages, addMessage, isTyping, setIsTyping, isStreaming, setIsStreaming, systemMessage } = useChatStore();
+  const { userProfile } = useUserStore();
   const [inputText, setInputText] = useState('');
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const loadingOpacity = useRef(new Animated.Value(0)).current;
+  const typingTimeoutRef = useRef<any>(null);
   const flatListRef = useRef<FlatList>(null);
   
   // Scroll to bottom when new messages arrive
@@ -32,9 +42,69 @@ export default function ChatbotScreen() {
     }
   }, [messages]);
   
+  // Initialize WebSocket connection when component mounts
+  useEffect(() => {
+    // Connect to WebSocket when user is logged in
+    if (userProfile?.email) {
+      chatGPTWebSocket.connect();
+    }
+    
+    // Disconnect when component unmounts
+    return () => {
+      chatGPTWebSocket.disconnect();
+    };
+  }, [userProfile?.email]);
+  
+  // Animate loading indicator
+  useEffect(() => {
+    if (isSendingMessage) {
+      Animated.sequence([
+        Animated.timing(loadingOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true
+        })
+      ]).start();
+    } else {
+      Animated.timing(loadingOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      }).start();
+    }
+  }, [isSendingMessage]);
+  
+  // Safety timeout to clear typing indicator if it gets stuck
+  useEffect(() => {
+    // Clear any existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
+    
+    // If typing is active, set a timeout to clear it after a reasonable time
+    if (isTyping) {
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false);
+        typingTimeoutRef.current = null;
+      }, 15000); // 15 seconds max typing time
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [isTyping, setIsTyping]);
+
   // Handle sending a message
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (inputText.trim() === '') return;
+    if (!userProfile?.email) {
+      Alert.alert('Error', 'You must be logged in to use the chatbot');
+      return;
+    }
     
     // Add user message
     const userMessage: Message = {
@@ -47,46 +117,139 @@ export default function ChatbotScreen() {
     addMessage(userMessage);
     setInputText('');
     
-    // Simulate bot typing
-    setIsTyping(true);
+    // Start loading and typing indicators
+    setIsSendingMessage(true);
+    setIsTyping(false); // Don't show typing indicator yet
+    setIsStreaming(true);
     
-    // Simulate bot response after a delay
-    setTimeout(() => {
-      const botResponse = getBotResponse(inputText);
-      const botMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        text: botResponse,
-        sender: 'bot',
-        timestamp: new Date().toISOString(),
-      };
+    try {
+      // Send message to WebSocket for streaming response
+      const messageId = await chatGPTWebSocket.sendMessage(inputText, `${systemMessage}. Write in 2-3 sentences or 3-4 bullet points. Be concise and clear.`);
+
+      if (messageId) {
+        setIsSendingMessage(false);
+        setIsTyping(true);
+        
+        // Safety timeout - if typing indicator gets stuck, clear it after 15 seconds
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+        }
+        typingTimeoutRef.current = setTimeout(() => {
+          setIsTyping(false);
+        }, 15000);
+      }
+    } catch (error) {
+      console.error('Error sending message to WebSocket:', error);
       
-      addMessage(botMessage);
-      setIsTyping(false);
-    }, 1500);
-  };
-  
-  // Get a bot response based on user input
-  const getBotResponse = (userInput: string) => {
-    const input = userInput.toLowerCase();
-    
-    if (input.includes('hello') || input.includes('hi') || input.includes('hey')) {
-      return "Hello! I'm CampusAI, your personal campus assistant. How can I help you today?";
-    } else if (input.includes('scholarship') || input.includes('financial aid')) {
-      return "I can help you find scholarships! There are several opportunities available based on your major. Would you like me to show you the top matches?";
-    } else if (input.includes('event') || input.includes('activities')) {
-      return "There are several events happening on campus this week. The AI Workshop today at 2 PM might interest you based on your Computer Science major.";
-    } else if (input.includes('class') || input.includes('course')) {
-      return "I can help you find information about courses. What specific class are you looking for?";
-    } else if (input.includes('deadline') || input.includes('due date')) {
-      return "The nearest deadline is for the Presidential Merit Scholarship application, which is due in 15 days. Would you like me to remind you about it?";
-    } else if (input.includes('thank')) {
-      return "You're welcome! Feel free to ask if you need anything else.";
-    } else if (input.includes('bye') || input.includes('goodbye')) {
-      return "Goodbye! Have a great day. Feel free to chat anytime you need assistance.";
-    } else {
-      return "I'm here to help with campus information, events, scholarships, and academic resources. Could you please provide more details about what you're looking for?";
+      // Fallback to REST API if WebSocket fails
+      try {
+        const chatMessages: ChatGPTMessage[] = [
+          { role: 'system', content: `${systemMessage}. Write in 2-3 sentences or 3-4 bullet points. Be concise and clear.` },
+          { role: 'user', content: inputText }
+        ];
+        
+        const response = await apiService.chatGPT({
+          user_email: userProfile.email,
+          messages: chatMessages
+        });
+        
+        const botMessage: Message = {
+          id: Date.now().toString(),
+          text: response.message,
+          sender: 'bot',
+          timestamp: new Date().toISOString(),
+        };
+        
+        addMessage(botMessage);
+      } catch (apiError) {
+        console.error('Error using ChatGPT API:', apiError);
+        
+        // Final fallback to local response
+        const fallbackResponse = "I'm sorry, I'm having trouble connecting to the server. Please try again later.";
+        const botMessage: Message = {
+          id: Date.now().toString(),
+          text: fallbackResponse,
+          sender: 'bot',
+          timestamp: new Date().toISOString(),
+        };
+        
+        addMessage(botMessage);
+      }
+    } finally {
+      // Only clear the sending state if we failed to send the message
+      // Otherwise, the typing indicator will be cleared when the response is complete
+      if (isSendingMessage) {
+        setIsSendingMessage(false);
+      }
+      setIsStreaming(false);
     }
   };
+  
+  // Load chat history from the server
+  const loadChatHistory = async () => {
+    if (!userProfile?.email) return;
+    
+    setIsLoadingHistory(true);
+    
+    try {
+      const history = await apiService.getChatGPTHistory(userProfile.email);
+      
+      // Check if history exists and has conversations
+      if (history && history.conversations && history.conversations.length > 0) {
+        // Convert history to messages
+        const historyMessages: Message[] = [];
+        
+        history.conversations.forEach((conversation) => {
+          // Add user message
+          historyMessages.push({
+            id: `user-${conversation.conversation_id}`,
+            text: conversation.user_message,
+            sender: 'user',
+            timestamp: conversation.timestamp,
+          });
+          
+          // Add bot message
+          historyMessages.push({
+            id: `bot-${conversation.conversation_id}`,
+            text: conversation.assistant_response,
+            sender: 'bot',
+            timestamp: conversation.timestamp,
+          });
+        });
+        
+        // Replace current messages with history
+        useChatStore.getState().setMessages(historyMessages);
+      } else {
+        // No conversations found
+        console.log('No chat history found for user:', userProfile.email);
+        if (messages.length === 0) {
+          // Only show alert if we don't have any messages already
+          Alert.alert('No History', 'No chat history found. Start a new conversation!');
+        }
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error);
+      // Check for specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('404') || error.message.includes('not found')) {
+          Alert.alert('No History', 'No chat history found. Start a new conversation!');
+        } else {
+          Alert.alert('Error', 'Failed to load chat history: ' + error.message);
+        }
+      } else {
+        Alert.alert('Error', 'Failed to load chat history');
+      }
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+  
+  // Effect to load chat history when user profile is available
+  useEffect(() => {
+    if (userProfile?.email && messages.length === 0) {
+      loadChatHistory();
+    }
+  }, [userProfile?.email, messages.length]);
   
   // Render a message item
   const renderMessageItem = ({ item }: { item: Message }) => {
@@ -135,7 +298,20 @@ export default function ChatbotScreen() {
           <Logo size={24} />
           <Text style={styles.headerTitle}>CampusAI Assistant</Text>
         </View>
-        <Info size={20} color={Colors.primary} />
+        <View style={styles.headerActions}>
+          {userProfile?.email && (
+            <TouchableOpacity 
+              style={styles.headerButton} 
+              onPress={loadChatHistory}
+              disabled={isLoadingHistory}
+            >
+              <History size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.headerButton}>
+            <Info size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
       
       <KeyboardAvoidingView 
@@ -143,7 +319,12 @@ export default function ChatbotScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        {messages.length === 0 ? (
+        {isLoadingHistory ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={styles.loadingText}>Loading chat history...</Text>
+          </View>
+        ) : messages.length === 0 ? (
           <View style={styles.emptyContainer}>
             <View style={styles.botAvatarContainer}>
               <Bot size={40} color={Colors.white} />
@@ -192,6 +373,20 @@ export default function ChatbotScreen() {
           />
         )}
         
+        {/* Full-screen loading overlay - only show when initially sending */}
+        {isSendingMessage && (
+          <Animated.View 
+            style={[styles.loadingOverlay, { opacity: loadingOpacity }]}
+            pointerEvents="none"
+          >
+            <View style={styles.loadingCard}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Sending your message...</Text>
+            </View>
+          </Animated.View>
+        )}
+        
+        {/* Typing indicator - show when response is streaming */}
         {isTyping && (
           <View style={styles.typingContainer}>
             <View style={styles.typingBubble}>
@@ -215,12 +410,16 @@ export default function ChatbotScreen() {
           <TouchableOpacity 
             style={[
               styles.sendButton,
-              inputText.trim() === '' && styles.disabledSendButton
+              (inputText.trim() === '' || isSendingMessage) && styles.disabledSendButton
             ]}
             onPress={handleSendMessage}
-            disabled={inputText.trim() === ''}
+            disabled={inputText.trim() === '' || isSendingMessage}
           >
-            <Send size={20} color={Colors.white} />
+            {isSendingMessage ? (
+              <ActivityIndicator size="small" color={Colors.white} />
+            ) : (
+              <Send size={20} color={Colors.white} />
+            )}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -252,6 +451,14 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: Colors.text,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerButton: {
+    padding: 4,
   },
   keyboardAvoidingView: {
     flex: 1,
@@ -378,6 +585,30 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryLight,
     opacity: 0.7,
   },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 100,
+  },
+  loadingCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+    minWidth: 200,
+  },
   emptyContainer: {
     flex: 1,
     alignItems: 'center',
@@ -424,5 +655,17 @@ const styles = StyleSheet.create({
   suggestionText: {
     fontSize: 14,
     color: Colors.text,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
 });

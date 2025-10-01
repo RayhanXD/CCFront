@@ -17,6 +17,11 @@ export const config = {
     VERIFY_TOKEN: '/verify-token',
     PROFILE: '/profile',
     RECOMMENDATIONS: '/recommendations',
+    CHATGPT: {
+      CHAT: '/chatgpt/chat',
+      HISTORY: '/chatgpt/history',
+      WEBSOCKET: '/ws/chatgpt',
+    },
   },
   
   // Request timeout (in milliseconds)
