@@ -17,6 +17,7 @@ interface UserState {
   isOnboardingComplete: boolean;
   isLoading: boolean;
   error: string | null;
+  savedOrganizations?: string[];
   setUserProfile: (profile: UserProfile) => void;
   setUserInterests: (interests: string[]) => void;
   setOnboardingComplete: (complete: boolean) => void;
@@ -29,6 +30,10 @@ interface UserState {
   loadUserProfile: (email: string) => Promise<boolean>;
   updateUserProfileOnServer: (email: string, updates: Partial<ApiUserProfile>) => Promise<boolean>;
   clearError: () => void;
+  // Organization saving functionality
+  saveOrganization?: (id: string) => void;
+  unsaveOrganization?: (id: string) => void;
+  isOrganizationSaved?: (id: string) => boolean;
 }
 
 export const useUserStore = create<UserState>()(
@@ -38,6 +43,7 @@ export const useUserStore = create<UserState>()(
       isOnboardingComplete: false,
       isLoading: false,
       error: null,
+      savedOrganizations: [],
       
       setUserProfile: (profile) => set({ userProfile: profile }),
       
@@ -244,6 +250,20 @@ export const useUserStore = create<UserState>()(
       },
       
       clearError: () => set({ error: null }),
+      
+      // Organization saving functionality
+      saveOrganization: (id: string) => set((state) => ({
+        savedOrganizations: [...(state.savedOrganizations || []), id]
+      })),
+      
+      unsaveOrganization: (id: string) => set((state) => ({
+        savedOrganizations: (state.savedOrganizations || []).filter(orgId => orgId !== id)
+      })),
+      
+      isOrganizationSaved: (id: string) => {
+        const state = get();
+        return (state.savedOrganizations || []).includes(id);
+      },
     }),
     {
       name: 'user-storage',

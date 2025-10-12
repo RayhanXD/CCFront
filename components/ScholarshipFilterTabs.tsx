@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
 import { Award, GraduationCap, Briefcase, Globe, CircleCheck } from 'lucide-react-native';
 import Colors from '@/constants/colors';
@@ -7,38 +7,42 @@ import { useScholarshipStore } from '@/store/scholarship-store';
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
 
+type FilterType = 'all' | 'merit' | 'need' | 'research' | 'international';
+
 const ScholarshipFilterTabs = () => {
   const { selectedFilter, setSelectedFilter } = useScholarshipStore();
   
+  // Define the tabs with their icons and labels
   const tabs = [
     { 
-      id: 'all', 
+      id: 'all' as FilterType, 
       label: 'All',
       icon: <CircleCheck size={isSmallScreen ? 14 : 16} color={selectedFilter === 'all' ? Colors.white : Colors.primary} />
     },
     { 
-      id: 'merit', 
+      id: 'merit' as FilterType, 
       label: 'Merit',
       icon: <Award size={isSmallScreen ? 14 : 16} color={selectedFilter === 'merit' ? Colors.white : Colors.primary} />
     },
     { 
-      id: 'need', 
+      id: 'need' as FilterType, 
       label: 'Need',
       icon: <GraduationCap size={isSmallScreen ? 14 : 16} color={selectedFilter === 'need' ? Colors.white : Colors.primary} />
     },
     { 
-      id: 'research', 
+      id: 'research' as FilterType, 
       label: 'Research',
       icon: <Briefcase size={isSmallScreen ? 14 : 16} color={selectedFilter === 'research' ? Colors.white : Colors.primary} />
     },
     { 
-      id: 'international', 
+      id: 'international' as FilterType, 
       label: 'International',
       icon: <Globe size={isSmallScreen ? 14 : 16} color={selectedFilter === 'international' ? Colors.white : Colors.primary} />
     },
   ];
 
-  const handleTabPress = (tabId: 'all' | 'merit' | 'need' | 'research' | 'international') => {
+  // Handle tab press - this will update both selectedFilter and filteredScholarships in the store
+  const handleTabPress = (tabId: FilterType) => {
     setSelectedFilter(tabId);
   };
 

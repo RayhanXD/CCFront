@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -7,7 +7,8 @@ import {
   TouchableOpacity, 
   Image, 
   ScrollView, 
-  StatusBar 
+  StatusBar,
+  Linking
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
@@ -17,29 +18,75 @@ import {
   Calendar, 
   MapPin, 
   Share2, 
-  ExternalLink 
+  ExternalLink,
+  Mail,
+  Globe,
+  Bookmark,
+  Tag,
+  Users,
+  Info
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useCampusStore } from '@/store/campus-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import { useUserStore } from '@/store/user-store';
 
 export default function OrganizationDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { organizations } = useCampusStore();
+  const { saveOrganization, unsaveOrganization, isOrganizationSaved } = useUserStore();
+  const [showFullDescription, setShowFullDescription] = useState(false);
   
   // Find the organization by ID
   const organization = organizations.find(org => org.id === id);
   
+  // Check if organization is saved
+  const saved = organization ? isOrganizationSaved?.(organization.id) || false : false;
+  
   // Breadcrumb items
   const breadcrumbItems = [
     { label: 'Home', path: '/' },
-    { label: 'Organization', path: `/organization/${id}` },
+    { label: 'Organizations', path: '/' },
+    { label: organization?.name || 'Organization Details', path: `/organization/${id}` },
   ];
   
   // Handle share
   const handleShare = () => {
-    console.log('Share organization');
+    if (organization) {
+      const message = `Check out ${organization.name} on Campus Connect!`;
+      // In a real app, you would implement platform-specific sharing
+      console.log('Share organization:', message);
+    }
+  };
+  
+  // Handle save/unsave
+  const handleSaveToggle = () => {
+    if (!organization) return;
+    
+    if (saved) {
+      unsaveOrganization?.(organization.id);
+    } else {
+      saveOrganization?.(organization.id);
+    }
+  };
+  
+  // Handle website visit
+  const handleVisitWebsite = () => {
+    if (organization?.website) {
+      Linking.openURL(organization.website).catch(err => {
+        console.error("Couldn't open website URL:", err);
+      });
+    }
+  };
+  
+  // Handle contact
+  const handleContact = () => {
+    if (organization?.email) {
+      Linking.openURL(`mailto:${organization.email}`).catch(err => {
+        console.error("Couldn't open email:", err);
+      });
+    }
   };
   
   if (!organization) {
@@ -103,12 +150,7 @@ export default function OrganizationDetailsScreen() {
         </View>
         
         <View style={styles.contentContainer}>
-          <View style={styles.titleRow}>
-            <View style={styles.iconContainer}>
-              <Building2 size={20} color={Colors.primary} />
-            </View>
-            <Text style={styles.title}>{organization.name}</Text>
-          </View>
+          <Text style={styles.title}>{organization.name}</Text>
           
           <View style={styles.actionsContainer}>
             <TouchableOpacity 
@@ -117,75 +159,174 @@ export default function OrganizationDetailsScreen() {
             >
               <Share2 size={22} color={Colors.primary} />
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, saved && styles.savedButton]}
+              onPress={handleSaveToggle}
+            >
+              <Bookmark size={22} color={saved ? Colors.white : Colors.primary} />
+            </TouchableOpacity>
+          </View>
+          
+          <View style={styles.categoryBadge}>
+            <Tag size={14} color={Colors.primary} />
+            <Text style={styles.categoryText}>{organization.category}</Text>
           </View>
           
           <View style={styles.infoContainer}>
             <View style={styles.infoItem}>
               <User size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
-                {organization.president.name} • {organization.president.role}
+                {organization.president?.name || 'N/A'} • {organization.president?.role || 'President'}
+              </Text>
+            </View>
+            
+            <View style={styles.infoItem}>
+              <Users size={16} color={Colors.textSecondary} />
+              <Text style={styles.infoText}>
+                {organization.memberCount || '50+'} members
               </Text>
             </View>
             
             <View style={styles.infoItem}>
               <Calendar size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
-                Weekly meetings on Tuesdays at 5:00 PM
+                {organization.meetingSchedule || 'Weekly meetings on Tuesdays at 5:00 PM'}
               </Text>
             </View>
             
-            <View style={styles.infoItem}>
-              <MapPin size={16} color={Colors.textSecondary} />
-              <Text style={styles.infoText}>
-                Student Union, Room 2.502
-              </Text>
-            </View>
+            {organization.location ? (
+              <View style={styles.infoItem}>
+                <MapPin size={16} color={Colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  {organization.location}
+                </Text>
+              </View>
+            ) : null}
+            
+            {organization.email && (
+              <View style={styles.infoItem}>
+                <Mail size={16} color={Colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  {organization.email}
+                </Text>
+              </View>
+            )}
+            
+            {organization.website && (
+              <View style={styles.infoItem}>
+                <Globe size={16} color={Colors.textSecondary} />
+                <Text style={[styles.infoText, styles.linkText]} onPress={handleVisitWebsite}>
+                  {organization.website.replace(/^https?:\/\//, '')}
+                </Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.divider} />
           
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.description}>
+            <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
               {organization.description}
             </Text>
-            <Text style={styles.description}>
-              Our mission is to provide students with opportunities to develop their leadership skills, network with professionals, and compete in business-related competitions at the local, state, and international levels.
-            </Text>
+            {organization.description && organization.description.length > 150 && (
+              <TouchableOpacity 
+                style={styles.readMoreButton}
+                onPress={() => setShowFullDescription(!showFullDescription)}
+              >
+                <Text style={styles.readMoreText}>
+                  {showFullDescription ? 'Show Less' : 'Read More'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.sectionContainer}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Upcoming Events</Text>
+              <TouchableOpacity onPress={() => router.push('/calendar')}>
+                <Text style={styles.seeAllText}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            
+            {organization.events && organization.events.length > 0 ? (
+              organization.events.map((event, index) => (
+                <TouchableOpacity 
+                  key={`event-${index}`}
+                  style={styles.eventCard}
+                  onPress={() => router.push(`/event/${event.id}`)}
+                >
+                  <View style={styles.eventHeader}>
+                    <Text style={styles.eventTitle}>{event.title}</Text>
+                    <View style={styles.eventBadge}>
+                      <Text style={styles.eventBadgeText}>{event.status || 'Upcoming'}</Text>
+                    </View>
+                  </View>
+                  
+                  <View style={styles.eventDetail}>
+                    <Calendar size={14} color={Colors.textSecondary} />
+                    <Text style={styles.eventDetailText}>{event.date} • {event.time}</Text>
+                  </View>
+                  
+                  <View style={styles.eventDetail}>
+                    <MapPin size={14} color={Colors.textSecondary} />
+                    <Text style={styles.eventDetailText}>{event.location}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))
+            ) : (
+              <View style={styles.noEventsContainer}>
+                <Calendar size={24} color={Colors.textSecondary} />
+                <Text style={styles.noEventsText}>No upcoming events</Text>
+              </View>
+            )}
           </View>
           
           <View style={styles.divider} />
           
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Upcoming Events</Text>
-            
-            <View style={styles.eventCard}>
-              <View style={styles.eventHeader}>
-                <Text style={styles.eventTitle}>New Member Orientation</Text>
-                <View style={styles.eventBadge}>
-                  <Text style={styles.eventBadgeText}>Next Week</Text>
+            <Text style={styles.sectionTitle}>Benefits of Joining</Text>
+            <View style={styles.benefitsList}>
+              {(organization.benefits || [
+                'Professional development opportunities',
+                'Networking with industry professionals',
+                'Leadership experience',
+                'Community service opportunities',
+                'Resume building'  
+              ]).map((benefit, index) => (
+                <View key={`benefit-${index}`} style={styles.benefitItem}>
+                  <View style={styles.benefitBullet} />
+                  <Text style={styles.benefitText}>{benefit}</Text>
                 </View>
-              </View>
-              
-              <View style={styles.eventDetail}>
-                <Calendar size={14} color={Colors.textSecondary} />
-                <Text style={styles.eventDetailText}>Tuesday, Sep 15 • 5:00 PM</Text>
-              </View>
-              
-              <View style={styles.eventDetail}>
-                <MapPin size={14} color={Colors.textSecondary} />
-                <Text style={styles.eventDetailText}>Student Union, Room 2.502</Text>
-              </View>
+              ))}
             </View>
           </View>
           
-          <TouchableOpacity style={styles.websiteButton}>
+          <TouchableOpacity 
+            style={styles.websiteButton}
+            onPress={handleVisitWebsite}
+          >
             <Text style={styles.websiteButtonText}>Visit Website</Text>
             <ExternalLink size={16} color={Colors.white} />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.contactButton}>
+          <TouchableOpacity 
+            style={styles.contactButton}
+            onPress={handleContact}
+          >
             <Text style={styles.contactButtonText}>Contact Organization</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={styles.joinButton}
+            onPress={() => console.log('Join organization')}
+          >
+            <Text style={styles.joinButtonText}>Join Organization</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -265,7 +406,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: Colors.text,
-    flex: 1,
+    marginBottom: 16,
   },
   actionsContainer: {
     flexDirection: 'row',
@@ -273,14 +414,34 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: Colors.primary,
+  },
+  savedButton: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+    marginBottom: 16,
+    gap: 6,
+  },
+  categoryText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '500',
   },
   infoContainer: {
     backgroundColor: Colors.white,
@@ -323,6 +484,29 @@ const styles = StyleSheet.create({
     color: Colors.text,
     lineHeight: 22,
     marginBottom: 12,
+  },
+  truncatedDescription: {
+    maxHeight: 100,
+    overflow: 'hidden',
+  },
+  readMoreButton: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  readMoreText: {
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  seeAllText: {
+    color: Colors.primary,
+    fontWeight: '500',
+    fontSize: 14,
   },
   eventCard: {
     backgroundColor: Colors.white,
@@ -387,11 +571,59 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 100,
     alignItems: 'center',
+    marginBottom: 12,
   },
   contactButtonText: {
     color: Colors.primary,
     fontSize: 16,
     fontWeight: '500',
+  },
+  joinButton: {
+    backgroundColor: Colors.success,
+    paddingVertical: 12,
+    borderRadius: 100,
+    alignItems: 'center',
+  },
+  joinButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  linkText: {
+    color: Colors.primary,
+    textDecorationLine: 'underline',
+  },
+  benefitsList: {
+    marginTop: 8,
+  },
+  benefitItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  benefitBullet: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.primary,
+    marginRight: 10,
+  },
+  benefitText: {
+    fontSize: 14,
+    color: Colors.text,
+    flex: 1,
+  },
+  noEventsContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    gap: 8,
+  },
+  noEventsText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
   },
   notFoundContainer: {
     flex: 1,

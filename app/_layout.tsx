@@ -3,11 +3,14 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform } from "react-native";
+import { Platform, AppState } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { useUserStore } from "@/store/user-store";
+import { useEventsStore } from "@/store/events-store";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, trpcClient } from "@/lib/trpc";
+import { DialogProvider } from "@/context/DialogContext";
+import { ToastProvider } from "@/context/ToastContext";
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
@@ -45,7 +48,11 @@ export default function RootLayout() {
     <ErrorBoundary>
       <trpc.Provider client={trpcClient} queryClient={queryClient}>
         <QueryClientProvider client={queryClient}>
-          <RootLayoutNav />
+          <ToastProvider>
+            <DialogProvider>
+              <RootLayoutNav />
+            </DialogProvider>
+          </ToastProvider>
         </QueryClientProvider>
       </trpc.Provider>
     </ErrorBoundary>
@@ -56,7 +63,9 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isOnboardingComplete, userProfile } = useUserStore();
+  const { checkAndUpdateEvents } = useEventsStore();
 
+  // Authentication effect
   useEffect(() => {
     const inAuthGroup = segments[0] === "onboarding" || segments[0] === "auth";
     const isAuthenticated = userProfile && isOnboardingComplete;
@@ -69,6 +78,26 @@ function RootLayoutNav() {
       router.replace("/");
     }
   }, [isOnboardingComplete, userProfile, segments]);
+  
+  // Daily events update effect
+  useEffect(() => {
+    // Check for events update when app starts
+    if (userProfile) {
+      checkAndUpdateEvents();
+    }
+    
+    // Set up app state listener to check for updates when app comes to foreground
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (nextAppState === 'active' && userProfile) {
+        // App has come to the foreground
+        checkAndUpdateEvents();
+      }
+    });
+    
+    return () => {
+      subscription.remove();
+    };
+  }, [userProfile]);
 
   return (
     <Stack

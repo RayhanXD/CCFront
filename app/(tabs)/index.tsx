@@ -80,10 +80,10 @@ export default function HomeScreen() {
           </View>
         </View>
         
-        {/* Today's Top 3 Events Section */}
+        {/* Today's Top 5 Events Section */}
         <TodayEvents 
-          events={todayEvents.slice(0, 3)} 
-          onSeeAllPress={scrollToRecommendations}
+          maxEvents={5}
+          onSeeAllPress={() => router.push('/today-events')}
         />
         
         <View ref={recommendationsSectionRef} style={styles.recommendationsSection}>

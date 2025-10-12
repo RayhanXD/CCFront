@@ -74,23 +74,19 @@ export default function ChatbotScreen() {
     }
   }, [isSendingMessage]);
   
-  // Safety timeout to clear typing indicator if it gets stuck
   useEffect(() => {
-    // Clear any existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
     }
     
-    // If typing is active, set a timeout to clear it after a reasonable time
     if (isTyping) {
       typingTimeoutRef.current = setTimeout(() => {
         setIsTyping(false);
         typingTimeoutRef.current = null;
-      }, 15000); // 15 seconds max typing time
+      }, 15000);
     }
     
-    // Cleanup on unmount
     return () => {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
@@ -130,7 +126,6 @@ export default function ChatbotScreen() {
         setIsSendingMessage(false);
         setIsTyping(true);
         
-        // Safety timeout - if typing indicator gets stuck, clear it after 15 seconds
         if (typingTimeoutRef.current) {
           clearTimeout(typingTimeoutRef.current);
         }
@@ -251,21 +246,16 @@ export default function ChatbotScreen() {
     }
   }, [userProfile?.email, messages.length]);
   
-  // Function to parse and render markdown-like formatting
   const renderFormattedText = (text: string, textStyle: any) => {
-    // Split the text by bold markers (**)
     const parts = text.split(/\*\*/);
     
-    // If there are no ** markers, return plain text
     if (parts.length === 1) {
       return <Text style={textStyle}>{text}</Text>;
     }
     
-    // Create an array of text elements with appropriate styling
     return (
       <Text style={textStyle}>
         {parts.map((part, index) => {
-          // Even indices are regular text, odd indices are bold text
           const isBold = index % 2 === 1;
           return (
             <Text 
@@ -400,7 +390,6 @@ export default function ChatbotScreen() {
           />
         )}
         
-        {/* Full-screen loading overlay - only show when initially sending */}
         {isSendingMessage && (
           <Animated.View 
             style={[styles.loadingOverlay, { opacity: loadingOpacity }]}
@@ -413,7 +402,6 @@ export default function ChatbotScreen() {
           </Animated.View>
         )}
         
-        {/* Typing indicator - show when response is streaming */}
         {isTyping && (
           <View style={styles.typingContainer}>
             <View style={styles.typingBubble}>

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -13,10 +13,15 @@ import { ChevronLeft, Bookmark, Calendar } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
 import AnimatedCard from '@/components/AnimatedCard';
+import { useDialog } from '@/context/DialogContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function SavedEventsScreen() {
   const router = useRouter();
   const { todayEvents, savedEvents, unsaveEvent } = useEventsStore();
+  const { showWarning } = useDialog();
+  const { showToast } = useToast();
+  const [eventToRemove, setEventToRemove] = useState<string | null>(null);
   
   // Get saved events
   const savedEventsList = todayEvents.filter(event => 
@@ -30,7 +35,23 @@ export default function SavedEventsScreen() {
   
   // Handle unsave
   const handleUnsave = (id: string) => {
-    unsaveEvent(id);
+    // Find the event name
+    const event = todayEvents.find(event => event.id === id);
+    
+    showWarning({
+      title: 'Remove Saved Event',
+      message: `Are you sure you want to remove "${event?.title || 'this event'}" from your saved events?`,
+      buttonText: 'Remove',
+      secondaryButtonText: 'Cancel',
+      buttonAction: () => {
+        unsaveEvent(id);
+        showToast({
+          message: 'Event removed from saved items',
+          type: 'info',
+          position: 'top',
+        });
+      },
+    });
   };
   
   // Format date

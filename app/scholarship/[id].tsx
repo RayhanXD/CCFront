@@ -24,11 +24,15 @@ import Colors from '@/constants/colors';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import { useDialog } from '@/context/DialogContext';
+import { useToast } from '@/context/ToastContext';
 
 export default function ScholarshipDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { scholarships } = useScholarshipStore();
+  const { showSuccess, showInfo } = useDialog();
+  const { showToast } = useToast();
   
   // Find the scholarship by ID
   const scholarship = scholarships.find(schol => schol.id === id);
@@ -70,6 +74,28 @@ export default function ScholarshipDetailsScreen() {
   // Handle share
   const handleShare = () => {
     console.log('Share scholarship');
+    showToast({
+      message: 'Scholarship link copied to clipboard',
+      type: 'success',
+      position: 'top',
+    });
+  };
+  
+  // Handle apply
+  const handleApply = () => {
+    showSuccess({
+      title: 'Application Started',
+      message: `You're about to be redirected to the application portal for the ${scholarship?.name}. Make sure you have all required documents ready.`,
+      buttonText: 'Continue',
+      buttonAction: () => {
+        // In a real app, this would redirect to the application portal
+        showToast({
+          message: 'Application portal opened in browser',
+          type: 'info',
+          position: 'top',
+        });
+      },
+    });
   };
   
   if (!scholarship) {
@@ -272,12 +298,24 @@ export default function ScholarshipDetailsScreen() {
             ))}
           </View>
           
-          <TouchableOpacity style={styles.applyButton}>
+          <TouchableOpacity 
+            style={styles.applyButton}
+            onPress={handleApply}
+          >
             <Text style={styles.applyButtonText}>Apply Now</Text>
             <ExternalLink size={16} color={Colors.white} />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.contactButton}>
+          <TouchableOpacity 
+            style={styles.contactButton}
+            onPress={() => {
+              showInfo({
+                title: 'Contact Information',
+                message: `To contact ${scholarship.provider} about this scholarship, please email support@${scholarship.provider.toLowerCase().replace(/\s+/g, '')}.edu or call (555) 123-4567.`,
+                buttonText: 'Got It',
+              });
+            }}
+          >
             <Text style={styles.contactButtonText}>Contact Provider</Text>
           </TouchableOpacity>
         </View>

@@ -150,13 +150,11 @@ class ChatGPTWebSocket {
       return;
     }
     
-    // Reset any existing completion timeout
     if (this.messageCompletionTimeout) {
       clearTimeout(this.messageCompletionTimeout);
       this.messageCompletionTimeout = null;
     }
     
-    // Set a new completion timeout - if no new data comes in for 2 seconds, consider the message complete
     this.messageCompletionTimeout = setTimeout(() => {
       const chatStore = useChatStore.getState();
       chatStore.setIsTyping(false);
@@ -221,25 +219,20 @@ class ChatGPTWebSocket {
       chatStore.setMessages(updatedMessages);
     }
     
-    // Check if this appears to be the end of a response
     if (data.endsWith('.') || data.endsWith('!') || data.endsWith('?') || 
         data.endsWith('\n\n') || data.length > 100) {
-      // This is likely the end of a response, so stop the typing indicator
-      // Add a small delay to make the transition look more natural
       setTimeout(() => {
         chatStore.setIsTyping(false);
       }, 500);
     }
   }
   
-  // Disconnect from the WebSocket
   disconnect() {
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     
-    // Clear any pending timeouts
     if (this.messageCompletionTimeout) {
       clearTimeout(this.messageCompletionTimeout);
       this.messageCompletionTimeout = null;
@@ -247,7 +240,6 @@ class ChatGPTWebSocket {
     
     this.currentStreamingMessageId = null;
     
-    // Make sure to clear typing state when disconnecting
     const chatStore = useChatStore.getState();
     chatStore.setIsTyping(false);
     chatStore.setIsStreaming(false);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   View, 
   Text, 
@@ -7,7 +7,9 @@ import {
   TouchableOpacity, 
   Image, 
   ScrollView, 
-  StatusBar 
+  StatusBar,
+  Linking,
+  Alert
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
@@ -18,7 +20,12 @@ import {
   Share2, 
   Bookmark,
   Tag,
-  User
+  User,
+  Users,
+  Info,
+  ExternalLink,
+  CalendarPlus,
+  AlertCircle
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
@@ -28,6 +35,7 @@ export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { todayEvents, saveEvent, unsaveEvent, isEventSaved } = useEventsStore();
+  const [showFullDescription, setShowFullDescription] = useState(false);
   
   // Find the event by ID
   const event = todayEvents.find(event => event.id === id);
@@ -39,12 +47,16 @@ export default function EventDetailsScreen() {
   const breadcrumbItems = [
     { label: 'Home', path: '/' },
     { label: 'Events', path: '/calendar' },
-    { label: 'Event Details', path: `/event/${id}` },
+    { label: event?.title || 'Event Details', path: `/event/${id}` },
   ];
   
   // Handle share
   const handleShare = () => {
-    console.log('Share event');
+    if (event) {
+      const message = `Check out "${event.title}" on ${event.date} at ${event.startTime}!`;
+      // In a real app, you would implement platform-specific sharing
+      console.log('Share event:', message);
+    }
   };
   
   // Handle save/unsave
@@ -56,6 +68,34 @@ export default function EventDetailsScreen() {
     } else {
       saveEvent(event.id);
     }
+  };
+  
+  // Handle calendar add
+  const handleAddToCalendar = () => {
+    if (!event) return;
+    
+    Alert.alert(
+      "Add to Calendar",
+      "This would add the event to your device calendar. Feature coming soon!",
+      [{ text: "OK" }]
+    );
+  };
+  
+  // Handle registration
+  const handleRegister = () => {
+    if (!event) return;
+    
+    Alert.alert(
+      "Registration",
+      "You are about to register for this event. Continue?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Register", 
+          onPress: () => Alert.alert("Success", "You have successfully registered for this event!") 
+        }
+      ]
+    );
   };
   
   // Format date
@@ -148,6 +188,15 @@ export default function EventDetailsScreen() {
             </TouchableOpacity>
           </View>
           
+          <View style={styles.categoryBadge}>
+            {event.tags && event.tags.length > 0 && (
+              <>
+                <Tag size={14} color={Colors.primary} />
+                <Text style={styles.categoryText}>{event.tags[0]}</Text>
+              </>
+            )}
+          </View>
+          
           <View style={styles.infoContainer}>
             <View style={styles.infoItem}>
               <Calendar size={16} color={Colors.textSecondary} />
@@ -163,12 +212,14 @@ export default function EventDetailsScreen() {
               </Text>
             </View>
             
-            <View style={styles.infoItem}>
-              <MapPin size={16} color={Colors.textSecondary} />
-              <Text style={styles.infoText}>
-                {event.location}
-              </Text>
-            </View>
+            {event.location ? (
+              <View style={styles.infoItem}>
+                <MapPin size={16} color={Colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  {event.location}
+                </Text>
+              </View>
+            ) : null}
             
             <View style={styles.infoItem}>
               <User size={16} color={Colors.textSecondary} />
@@ -182,12 +233,47 @@ export default function EventDetailsScreen() {
           
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>About This Event</Text>
-            <Text style={styles.description}>
+            <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
               {event.description}
             </Text>
-            <Text style={styles.description}>
-              Don't miss this opportunity to enhance your skills and network with industry professionals. Refreshments will be provided. Please bring your student ID for check-in.
-            </Text>
+            {event.description && event.description.length > 150 && (
+              <TouchableOpacity 
+                style={styles.readMoreButton}
+                onPress={() => setShowFullDescription(!showFullDescription)}
+              >
+                <Text style={styles.readMoreText}>
+                  {showFullDescription ? 'Show Less' : 'Read More'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          
+          <View style={styles.divider} />
+          
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Event Details</Text>
+            
+            <View style={styles.detailsCard}>
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconContainer}>
+                  <AlertCircle size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailTitle}>Important Information</Text>
+                  <Text style={styles.detailText}>Please bring your student ID for check-in. Refreshments will be provided.</Text>
+                </View>
+              </View>
+              
+              <View style={styles.detailItem}>
+                <View style={styles.detailIconContainer}>
+                  <Users size={20} color={Colors.primary} />
+                </View>
+                <View style={styles.detailContent}>
+                  <Text style={styles.detailTitle}>Who Should Attend</Text>
+                  <Text style={styles.detailText}>Students interested in {event.tags.join(', ')}. All experience levels welcome.</Text>
+                </View>
+              </View>
+            </View>
           </View>
           
           <View style={styles.divider} />
@@ -204,11 +290,18 @@ export default function EventDetailsScreen() {
             </View>
           </View>
           
-          <TouchableOpacity style={styles.registerButton}>
+          <TouchableOpacity 
+            style={styles.registerButton}
+            onPress={handleRegister}
+          >
             <Text style={styles.registerButtonText}>Register for Event</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.calendarButton}>
+          <TouchableOpacity 
+            style={styles.calendarButton}
+            onPress={handleAddToCalendar}
+          >
+            <CalendarPlus size={16} color={Colors.primary} style={styles.buttonIcon} />
             <Text style={styles.calendarButtonText}>Add to Calendar</Text>
           </TouchableOpacity>
         </View>
@@ -338,6 +431,34 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: 12,
   },
+  truncatedDescription: {
+    maxHeight: 100,
+    overflow: 'hidden',
+  },
+  readMoreButton: {
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  readMoreText: {
+    color: Colors.primary,
+    fontWeight: '500',
+  },
+  categoryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 100,
+    marginBottom: 16,
+    gap: 6,
+  },
+  categoryText: {
+    color: Colors.primary,
+    fontSize: 14,
+    fontWeight: '500',
+  },
   tagsContainer: {
     marginBottom: 24,
   },
@@ -379,16 +500,59 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   calendarButton: {
+    flexDirection: 'row',
     borderWidth: 1,
     borderColor: Colors.primary,
     paddingVertical: 12,
     borderRadius: 100,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   calendarButtonText: {
     color: Colors.primary,
     fontSize: 16,
     fontWeight: '500',
+  },
+  buttonIcon: {
+    marginRight: 4,
+  },
+  detailsCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 12,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  detailIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  detailContent: {
+    flex: 1,
+  },
+  detailTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: 4,
+  },
+  detailText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
   notFoundContainer: {
     flex: 1,

@@ -4,10 +4,11 @@ import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCalendarStore } from '@/store/calendar-store';
 import Colors from '@/constants/colors';
-import { X } from 'lucide-react-native';
+import { X, Check } from 'lucide-react-native';
 
 export default function AddEventModal() {
   const addEvent = useCalendarStore((state) => state.addEvent);
+  const isLoading = useCalendarStore((state) => state.isLoading);
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
@@ -15,6 +16,8 @@ export default function AddEventModal() {
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [color, setColor] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState('');
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -33,16 +36,26 @@ export default function AddEventModal() {
     }
   };
 
-  const handleSubmit = () => {
+  // Predefined colors for events
+  const eventColors = [
+    '#FF5733', // Red-Orange
+    '#33FF57', // Green
+    '#3357FF', // Blue
+    '#FF33A8', // Pink
+    '#33A8FF', // Light Blue
+    '#A833FF', // Purple
+    null,      // No color
+  ];
+  
+  const handleSubmit = async () => {
     if (!title || !location || !duration) {
       // You could add proper validation feedback here
       return;
     }
 
     const newEvent = {
-      id: Date.now().toString(),
       title,
-      date: date.toISOString(),
+      date: date.toISOString().split('T')[0], // Format as YYYY-MM-DD
       time: date.toLocaleTimeString('en-US', { 
         hour: 'numeric', 
         minute: '2-digit',
@@ -50,11 +63,18 @@ export default function AddEventModal() {
       }),
       duration: parseInt(duration),
       location,
-      description
+      description,
+      color: color || undefined,
+      img: imageUrl || undefined
     };
 
-    addEvent(newEvent);
-    router.back();
+    try {
+      await addEvent(newEvent);
+      router.back();
+    } catch (error) {
+      console.error('Failed to add event:', error);
+      // You could add error handling UI here
+    }
   };
 
   return (
@@ -179,14 +199,52 @@ export default function AddEventModal() {
             numberOfLines={4}
           />
         </View>
+        
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Image URL (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={imageUrl}
+            onChangeText={setImageUrl}
+            placeholder="https://example.com/image.jpg"
+            autoCapitalize="none"
+            keyboardType="url"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Event Color (optional)</Text>
+          <View style={styles.colorPicker}>
+            {eventColors.map((eventColor, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.colorOption,
+                  eventColor ? { backgroundColor: eventColor } : styles.noColorOption,
+                  color === eventColor && styles.selectedColorOption
+                ]}
+                onPress={() => setColor(eventColor)}
+              >
+                {color === eventColor && (
+                  <View style={styles.colorCheckmark}>
+                    <Check size={12} color="#FFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity 
-          style={styles.submitButton}
+          style={[styles.submitButton, isLoading && styles.disabledButton]}
           onPress={handleSubmit}
+          disabled={isLoading}
         >
-          <Text style={styles.submitButtonText}>Create Event</Text>
+          <Text style={styles.submitButtonText}>
+            {isLoading ? 'Creating...' : 'Create Event'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -240,6 +298,41 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
   },
+  colorPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+  },
+  colorOption: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  noColorOption: {
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  selectedColorOption: {
+    borderWidth: 2,
+    borderColor: Colors.white,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  colorCheckmark: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   dateButton: {
     backgroundColor: Colors.white,
     borderRadius: 8,
@@ -266,6 +359,10 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
     fontWeight: '600',
+  },
+  disabledButton: {
+    backgroundColor: Colors.primary + '80', // Adding transparency
+    opacity: 0.8,
   },
 });
 

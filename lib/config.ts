@@ -17,6 +17,10 @@ export const config = {
     VERIFY_TOKEN: '/verify-token',
     PROFILE: '/profile',
     RECOMMENDATIONS: '/recommendations',
+    CALENDAR: {
+      ALL_EVENTS: '/calendar',
+      TODAY_EVENTS: '/today-events',
+    },
     CHATGPT: {
       CHAT: '/chatgpt/chat',
       HISTORY: '/chatgpt/history',

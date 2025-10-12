@@ -97,6 +97,11 @@ rork-campus-connect/
 │   ├── onboarding/        # User onboarding flow
 │   └── modals/            # Modal components
 ├── components/            # Reusable UI components
+│   ├── dialogs/           # Dialog components (Success, Error, Info, Warning)
+│   └── toast/             # Toast notification components
+├── context/               # React Context providers
+│   ├── DialogContext.tsx  # Dialog system provider
+│   └── ToastContext.tsx   # Toast notification provider
 ├── constants/             # App constants (colors, typography, etc.)
 ├── lib/                   # Utility libraries and configurations
 ├── mocks/                 # Mock data for development
@@ -114,6 +119,7 @@ rork-campus-connect/
 - **Backend**: Hono + tRPC
 - **Icons**: Lucide React Native
 - **Type Safety**: TypeScript
+- **UI Components**: Custom dialog and toast notification system
 
 ## Development
 
@@ -130,6 +136,46 @@ rork-campus-connect/
 - **NativeWind** - Utility-first styling
 - **Zustand** - Lightweight state management
 - **React Query** - Data fetching and caching
+
+### Dialog & Toast System
+
+Built-in feedback system with modal dialogs and non-modal toast notifications:
+
+#### Dialog System
+
+Four types of modal dialogs (Success, Error, Info, Warning):
+
+```tsx
+const { showSuccess, showError, showInfo, showWarning } = useDialog();
+
+// Basic usage
+showSuccess({ title: 'Done', message: 'Operation completed' });
+
+// With confirmation action
+showWarning({
+  title: 'Delete Item',
+  message: 'Are you sure?',
+  buttonText: 'Delete',
+  secondaryButtonText: 'Cancel',
+  buttonAction: () => deleteItem(id)
+});
+```
+
+#### Toast Notifications
+
+Temporary, non-modal notifications with auto-stacking:
+
+```tsx
+const { showToast } = useToast();
+
+// Basic usage
+showToast({ message: 'Item saved', type: 'success' });
+
+// Multiple toasts stack automatically
+showToast({ message: 'New message', type: 'info', position: 'bottom' });
+```
+
+Both systems are fully accessible.
 
 ## Contributing
 

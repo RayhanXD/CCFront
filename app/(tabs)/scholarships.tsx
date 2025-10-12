@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, StatusBar, Animated } from 'react-native';
 import { useRouter } from 'expo-router';
 import ScholarshipFilterTabs from '@/components/ScholarshipFilterTabs';
@@ -6,12 +6,27 @@ import { ScholarshipCard } from '@/components/ScholarshipCard';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import Colors from '@/constants/colors';
 import BackToTopButton from '@/components/BackToTopButton';
+import { useDialog } from '@/context/DialogContext';
 
 export default function ScholarshipsScreen() {
   const router = useRouter();
-  const { filteredScholarships } = useScholarshipStore();
+  const { filteredScholarships, selectedFilter, setSelectedFilter } = useScholarshipStore();
+  const { showError } = useDialog();
   const scrollY = new Animated.Value(0);
   const flatListRef = useRef<FlatList>(null);
+
+  // Check if there are no scholarships for the selected filter
+  useEffect(() => {
+    if (filteredScholarships.length === 0 && selectedFilter !== 'all') {
+      showError({
+        title: 'No Scholarships Found',
+        message: `There are no scholarships available for the ${selectedFilter} filter. Would you like to view all scholarships?`,
+        buttonText: 'View All',
+        buttonAction: () => setSelectedFilter('all')
+      });
+    }
+  }, [selectedFilter, filteredScholarships.length]);
+
 
   const handleCardPress = (id: string) => {
     router.push(`/scholarship/${id}`);
@@ -67,7 +82,7 @@ export default function ScholarshipsScreen() {
       ) : (
         <View style={styles.emptyState}>
           <Text style={styles.emptyStateText}>
-            No scholarships found for this filter.
+            No scholarships found for the {selectedFilter} filter.
           </Text>
           <TouchableOpacity 
             style={styles.emptyStateButton}

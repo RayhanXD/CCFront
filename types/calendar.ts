@@ -7,4 +7,6 @@ export interface CalendarEvent {
   location: string;
   description?: string;
   color?: string;
+  img?: string; // URL to event image
+  isRecurring?: boolean; // Flag for recurring events
 }

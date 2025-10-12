@@ -4,10 +4,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scholarships } from '@/mocks/scholarships';
 import { Scholarship } from '@/types/scholarship';
 
+type FilterType = 'all' | 'merit' | 'need' | 'research' | 'international';
+
 interface ScholarshipState {
   scholarships: Scholarship[];
-  selectedFilter: 'all' | 'merit' | 'need' | 'research' | 'international';
-  setSelectedFilter: (filter: 'all' | 'merit' | 'need' | 'research' | 'international') => void;
+  selectedFilter: FilterType;
+  setSelectedFilter: (filter: FilterType) => void;
+  getFilteredScholarships: () => Scholarship[];
   filteredScholarships: Scholarship[];
 }
 
@@ -16,16 +19,30 @@ export const useScholarshipStore = create<ScholarshipState>()(
     (set, get) => ({
       scholarships: scholarships,
       selectedFilter: 'all',
-      setSelectedFilter: (filter) => set({ selectedFilter: filter }),
-      get filteredScholarships() {
-        const filter = get().selectedFilter;
-        const scholarships = get().scholarships;
+      filteredScholarships: scholarships, // Initialize with all scholarships
+      
+      setSelectedFilter: (filter) => {
+        set((state) => {
+          // Update both selectedFilter and filteredScholarships
+          const filtered = filter === 'all' 
+            ? state.scholarships 
+            : state.scholarships.filter(scholarship => scholarship.type === filter);
+          
+          return { 
+            selectedFilter: filter,
+            filteredScholarships: filtered 
+          };
+        });
+      },
+      
+      getFilteredScholarships: () => {
+        const { selectedFilter, scholarships } = get();
         
-        if (filter === 'all') {
+        if (selectedFilter === 'all') {
           return scholarships;
         }
         
-        return scholarships.filter(scholarship => scholarship.type === filter);
+        return scholarships.filter(scholarship => scholarship.type === selectedFilter);
       }
     }),
     {
