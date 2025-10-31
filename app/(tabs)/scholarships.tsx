@@ -1,10 +1,11 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, StatusBar, Animated } from 'react-native';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, Animated } from 'react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import ScholarshipFilterTabs from '@/components/ScholarshipFilterTabs';
 import { ScholarshipCard } from '@/components/ScholarshipCard';
 import { useScholarshipStore } from '@/store/scholarship-store';
-import Colors from '@/constants/colors';
+import { useTheme } from '@/contexts/theme-context';
 import BackToTopButton from '@/components/BackToTopButton';
 import { useDialog } from '@/context/DialogContext';
 
@@ -12,6 +13,7 @@ export default function ScholarshipsScreen() {
   const router = useRouter();
   const { filteredScholarships, selectedFilter, setSelectedFilter } = useScholarshipStore();
   const { showError } = useDialog();
+  const { theme, isDarkMode } = useTheme();
   const scrollY = new Animated.Value(0);
   const flatListRef = useRef<FlatList>(null);
 
@@ -46,15 +48,15 @@ export default function ScholarshipsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <CustomStatusBar />
       
-      <View style={styles.heroSection}>
+      <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
         <View style={styles.titleContainer}>
-          <Text style={styles.title}>
-            Financial <Text style={styles.titleHighlight}>Opportunities</Text>
+          <Text style={[styles.title, { color: theme.text }]}>
+            Financial <Text style={[styles.titleHighlight, { color: theme.primary }]}>Opportunities</Text>
           </Text>
-          <Text style={styles.subtitle}>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             Discover scholarships and grants that match your academic profile
           </Text>
         </View>
@@ -62,7 +64,7 @@ export default function ScholarshipsScreen() {
       
       <ScholarshipFilterTabs />
       
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: theme.border }]} />
       
       {filteredScholarships.length > 0 ? (
         <Animated.FlatList
@@ -80,15 +82,15 @@ export default function ScholarshipsScreen() {
           )}
         />
       ) : (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyStateText}>
+        <View style={[styles.emptyState, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
             No scholarships found for the {selectedFilter} filter.
           </Text>
           <TouchableOpacity 
-            style={styles.emptyStateButton}
+            style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
             onPress={() => useScholarshipStore.getState().setSelectedFilter('all')}
           >
-            <Text style={styles.emptyStateButtonText}>View All</Text>
+            <Text style={[styles.emptyStateButtonText, { color: theme.textInverted }]}>View All</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -101,10 +103,12 @@ export default function ScholarshipsScreen() {
   );
 }
 
+// Import Colors for backward compatibility
+import Colors from '@/constants/colors';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   heroSection: {
     padding: 20,
@@ -116,21 +120,17 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: Colors.text,
     marginBottom: 8,
     lineHeight: 36,
   },
   titleHighlight: {
-    color: Colors.primary,
   },
   subtitle: {
     fontSize: 15,
-    color: Colors.textSecondary,
     lineHeight: 20,
   },
   divider: {
     height: 1,
-    backgroundColor: Colors.border,
     marginHorizontal: 20,
     marginVertical: 16,
   },
@@ -152,23 +152,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 40,
     margin: 20,
-    backgroundColor: Colors.white,
     borderRadius: 12,
   },
   emptyStateText: {
     fontSize: 16,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
   emptyStateButton: {
-    backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 100,
   },
   emptyStateButtonText: {
-    color: Colors.white,
     fontWeight: '500',
   },
 });

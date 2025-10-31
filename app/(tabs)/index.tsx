@@ -1,5 +1,7 @@
-import React, { useRef } from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, StatusBar, Animated, ScrollView, Platform } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, Animated, ScrollView, Platform } from 'react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
+import ApiStatusIndicator from '@/components/ApiStatusIndicator';
 import { useRouter } from 'expo-router';
 import FilterTabs from '@/components/FilterTabs';
 import OrganizationCard from '@/components/OrganizationCard';
@@ -8,17 +10,30 @@ import { useCampusStore } from '@/store/campus-store';
 import { useEventsStore } from '@/store/events-store';
 import { useUserStore } from '@/store/user-store';
 import Colors from '@/constants/colors';
+import { useTheme } from '@/contexts/theme-context';
+import { config } from '@/lib/config';
 import BackToTopButton from '@/components/BackToTopButton';
 import Logo from '@/components/Logo';
+import NetworkErrorBanner from '@/components/NetworkErrorBanner';
+import { MessageSquare } from 'lucide-react-native';
 
 export default function HomeScreen() {
   const router = useRouter();
   const { filteredOrganizations } = useCampusStore();
-  const { todayEvents } = useEventsStore();
+  const { todayEvents, error, isUsingFallbackData, retryFetch, isLoading } = useEventsStore();
   const { userProfile } = useUserStore();
+  const { theme, isDarkMode } = useTheme();
   const scrollY = new Animated.Value(0);
   const scrollViewRef = useRef<ScrollView>(null);
   const recommendationsSectionRef = useRef<View>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
+  
+  // Handle retry for network errors
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    await retryFetch();
+    setIsRetrying(false);
+  };
 
   const handleCardPress = (id: string) => {
     // Navigate to organization details
@@ -49,8 +64,30 @@ export default function HomeScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <CustomStatusBar />
+      
+      {/* API Status Indicator */}
+      <View style={styles.apiStatusContainer}>
+        <ApiStatusIndicator onRetry={handleRetry} />
+      </View>
+      
+      {/* Network Error Banner */}
+      <NetworkErrorBanner 
+        isVisible={isUsingFallbackData || !!error}
+        message={error || 'Network error. Using cached data.'}
+        onRetry={handleRetry}
+        isRetrying={isRetrying || isLoading}
+        isMockData={config.USE_MOCK_DATA}
+      />
+      
+      {/* Chat Button */}
+      <TouchableOpacity 
+        style={[styles.chatButton, { backgroundColor: theme.primary }]}
+        onPress={() => router.push('/chatbot')}
+      >
+        <MessageSquare size={24} color={isDarkMode ? theme.background : Colors.white} />
+      </TouchableOpacity>
       
       <ScrollView 
         ref={scrollViewRef}
@@ -61,20 +98,20 @@ export default function HomeScreen() {
           { useNativeDriver: false }
         )}
       >
-        <View style={styles.heroSection}>
+        <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
           <View style={styles.titleContainer}>
             <View style={styles.welcomeContainer}>
               <Logo size={24} />
-              <Text style={styles.welcomeText}>
+              <Text style={[styles.welcomeText, { color: theme.primary }]}>
                 Hi, {userProfile?.name?.split(' ')[0] || 'there'}!
               </Text>
             </View>
-            <Text style={styles.title}>
-              Recommendations <Text style={styles.titleAmp}>&</Text>
+            <Text style={[styles.title, { color: theme.text }]}>
+              Recommendations <Text style={[styles.titleAmp, { color: theme.text }]}>&</Text>
               {" "}
-              <Text style={styles.titleHighlight}>Opportunities</Text>
+              <Text style={[styles.titleHighlight, { color: theme.primary }]}>Opportunities</Text>
             </Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Discover personalized recommendations tailored to your academic journey
             </Text>
           </View>
@@ -128,9 +165,30 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  apiStatusContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 50 : 20,
+    alignSelf: 'center',
+    zIndex: 1000,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+  },
+  chatButton: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+    zIndex: 999,
   },
   heroSection: {
     padding: 20,

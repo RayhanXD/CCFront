@@ -2,12 +2,14 @@ import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronRight, User, BookOpen, Award, Heart, Settings, Edit } from 'lucide-react-native';
-import Colors from '@/constants/colors';
+import { useTheme } from '@/contexts/theme-context';
+import { useLanguage } from '@/contexts/language-context';
 import { useUserStore } from '@/store/user-store';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { userProfile,signOutFirebase } = useUserStore();
+  const { userProfile, signOutFirebase } = useUserStore();
+  const { theme, isDarkMode } = useTheme();
   
   const handleEditProfile = () => {
     router.push('/profile/edit');
@@ -18,8 +20,7 @@ export default function ProfileScreen() {
   };
   
   const handleSettings = () => {
-    // Navigate to settings when implemented
-    // router.push('/profile/settings');
+    router.push('/profile/settings');
   };
 
   const handleLogout = async () => {
@@ -36,103 +37,103 @@ export default function ProfileScreen() {
   const avatarUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=634&q=80';
   
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Profile</Text>
+        <View style={[styles.header, { backgroundColor: theme.background }]}>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Profile</Text>
           <TouchableOpacity 
-            style={styles.editButton}
+            style={[styles.editButton, { backgroundColor: theme.primaryLight }]}
             onPress={handleEditProfile}
           >
-            <Edit size={18} color={Colors.primary} />
-            <Text style={styles.editButtonText}>Edit</Text>
+            <Edit size={18} color={theme.primary} />
+            <Text style={[styles.editButtonText, { color: theme.primary }]}>Edit</Text>
           </TouchableOpacity>
         </View>
         
-        <View style={styles.profileCard}>
+        <View style={[styles.profileCard, { backgroundColor: theme.cardBackground }]}>
           <View style={styles.profileHeader}>
             <Image 
               source={{ uri: avatarUrl }}
               style={styles.avatar}
             />
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{userProfile?.name || 'Student Name'}</Text>
-              <Text style={styles.profileDetails}>{userProfile?.major || 'Major'} • {userProfile?.year || 'Year'}</Text>
+              <Text style={[styles.profileName, { color: theme.text }]}>{userProfile?.name || 'Student Name'}</Text>
+              <Text style={[styles.profileDetails, { color: theme.textSecondary }]}>{userProfile?.major || 'Major'} • {userProfile?.year || 'Year'}</Text>
             </View>
           </View>
           
-          <View style={styles.interestsContainer}>
-            <Text style={styles.interestsTitle}>Interests</Text>
+          <View style={[styles.interestsContainer, { borderTopColor: theme.border }]}>
+            <Text style={[styles.interestsTitle, { color: theme.text }]}>Interests</Text>
             <View style={styles.interestTags}>
               {userProfile?.interests && userProfile.interests.length > 0 ? (
                 userProfile.interests.map((interest, index) => (
-                  <View key={index} style={styles.interestTag}>
-                    <Text style={styles.interestTagText}>{interest}</Text>
+                  <View key={index} style={[styles.interestTag, { backgroundColor: theme.primaryLight }]}>
+                    <Text style={[styles.interestTagText, { color: theme.primary }]}>{interest}</Text>
                   </View>
                 ))
               ) : (
-                <Text style={styles.noInterestsText}>No interests added yet</Text>
+                <Text style={[styles.noInterestsText, { color: theme.textSecondary }]}>No interests added yet</Text>
               )}
             </View>
           </View>
         </View>
         
-        <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem} onPress={handleSavedItems}>
+        <View style={[styles.menuSection, { backgroundColor: theme.cardBackground }]}>
+          <TouchableOpacity style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={handleSavedItems}>
             <View style={styles.menuItemLeft}>
-              <View style={[styles.menuItemIcon, { backgroundColor: Colors.primaryLight }]}>
-                <Heart size={18} color={Colors.primary} />
+              <View style={[styles.menuItemIcon, { backgroundColor: theme.primaryLight }]}>
+                <Heart size={18} color={theme.primary} />
               </View>
-              <Text style={styles.menuItemText}>Saved Items</Text>
+              <Text style={[styles.menuItemText, { color: theme.text }]}>Saved Items</Text>
             </View>
-            <ChevronRight size={18} color={Colors.textSecondary} />
+            <ChevronRight size={18} color={theme.textSecondary} />
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.menuItem} onPress={handleSettings}>
             <View style={styles.menuItemLeft}>
-              <View style={[styles.menuItemIcon, { backgroundColor: '#F0F0F0' }]}>
-                <Settings size={18} color={Colors.text} />
+              <View style={[styles.menuItemIcon, { backgroundColor: isDarkMode ? '#333333' : '#F0F0F0' }]}>
+                <Settings size={18} color={theme.text} />
               </View>
-              <Text style={styles.menuItemText}>Settings</Text>
+              <Text style={[styles.menuItemText, { color: theme.text }]}>Settings</Text>
             </View>
-            <ChevronRight size={18} color={Colors.textSecondary} />
+            <ChevronRight size={18} color={theme.textSecondary} />
           </TouchableOpacity>
         </View>
         
         <View style={styles.statsSection}>
-          <Text style={styles.statsSectionTitle}>Your Activity</Text>
+          <Text style={[styles.statsSectionTitle, { color: theme.text }]}>Your Activity</Text>
           
           <View style={styles.statsGrid}>
-            <View style={styles.statCard}>
-              <View style={[styles.statIconContainer, { backgroundColor: Colors.primaryLight }]}>
-                <User size={20} color={Colors.primary} />
+            <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: theme.primaryLight }]}>
+                <User size={20} color={theme.primary} />
               </View>
-              <Text style={styles.statValue}>5</Text>
-              <Text style={styles.statLabel}>Organizations</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>5</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Organizations</Text>
             </View>
             
-            <View style={styles.statCard}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#E5F5FF' }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: isDarkMode ? '#162A39' : '#E5F5FF' }]}>
                 <Award size={20} color="#0085FF" />
               </View>
-              <Text style={styles.statValue}>3</Text>
-              <Text style={styles.statLabel}>Scholarships</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>3</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Scholarships</Text>
             </View>
             
-            <View style={styles.statCard}>
-              <View style={[styles.statIconContainer, { backgroundColor: '#FFF2E5' }]}>
+            <View style={[styles.statCard, { backgroundColor: theme.cardBackground }]}>
+              <View style={[styles.statIconContainer, { backgroundColor: isDarkMode ? '#332815' : '#FFF2E5' }]}>
                 <BookOpen size={20} color="#FF8A00" />
               </View>
-              <Text style={styles.statValue}>12</Text>
-              <Text style={styles.statLabel}>Events</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>12</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Events</Text>
             </View>
           </View>
         </View>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+          <TouchableOpacity style={[styles.logoutButton, { backgroundColor: theme.logoutButton }]} onPress={handleLogout}>
             <Text style={styles.logoutButtonText}>Logout</Text>
            </TouchableOpacity>
       </ScrollView>
@@ -140,10 +141,12 @@ export default function ProfileScreen() {
   );
 }
 
+// Import Colors for backward compatibility
+import Colors from '@/constants/colors';
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollView: {
     flex: 1,
@@ -344,4 +347,4 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: 16,
   },
-});
+})

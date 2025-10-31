@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import {
   View,
   Text,
@@ -8,7 +9,6 @@ import {
   Alert,
   ActivityIndicator,
   ScrollView,
-  StatusBar,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUserStore } from '@/store/user-store';
@@ -100,7 +100,7 @@ export default function InterestsScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       <ScrollView 
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}

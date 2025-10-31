@@ -10,6 +10,8 @@ interface CalendarState {
   isLoading: boolean;
   error: string | null;
   selectedDate: Date | null;
+  isUsingFallbackData: boolean; // Flag to indicate if using fallback data
+  retryCount: number; // Number of retry attempts
   setSelectedDate: (date: Date) => void;
   fetchEvents: (filters?: {
     start_date?: string;
@@ -21,6 +23,7 @@ interface CalendarState {
   addEvent: (event: Omit<CalendarEvent, "id">) => Promise<void>;
   updateEvent: (id: string, updatedEvent: Partial<CalendarEvent>) => Promise<void>;
   deleteEvent: (id: string) => Promise<void>;
+  retryFetch: () => Promise<void>; // Retry fetching events
 }
 
 export const useCalendarStore = create<CalendarState>()(
@@ -30,6 +33,8 @@ export const useCalendarStore = create<CalendarState>()(
       isLoading: false,
       error: null,
       selectedDate: new Date(),
+      isUsingFallbackData: false,
+      retryCount: 0,
       setSelectedDate: (date) => set({ selectedDate: date }),
       
       fetchEvents: async (filters) => {
@@ -40,13 +45,63 @@ export const useCalendarStore = create<CalendarState>()(
           // Remove duplicate events before storing them
           const uniqueEvents = removeDuplicateEvents(response.events);
           
-          set({ events: uniqueEvents, isLoading: false });
+          set({ 
+            events: uniqueEvents, 
+            isLoading: false,
+            isUsingFallbackData: false,
+            retryCount: 0, // Reset retry count on successful fetch
+            error: null
+          });
         } catch (error) {
           console.error("Failed to fetch calendar events:", error);
-          set({ 
-            error: error instanceof Error ? error.message : "Failed to fetch calendar events", 
-            isLoading: false 
+          const errorMessage = error instanceof Error ? error.message : "Failed to fetch calendar events";
+          const isNetworkError = errorMessage.includes('Network error');
+          
+          set(state => ({ 
+            error: `${errorMessage}. ${isNetworkError ? 'Using cached data.' : 'Please try again later.'}`,
+            isLoading: false,
+            isUsingFallbackData: true,
+            retryCount: state.retryCount + 1
+          }));
+        }
+      },
+      
+      // Retry fetching events
+      retryFetch: async () => {
+        // Reset retry count and try again
+        set(state => ({ ...state, retryCount: 0, isLoading: true, error: null }));
+        
+        try {
+          // Get the first and last day of the current month for filtering
+          const today = new Date();
+          const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+          const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          
+          // Format dates as YYYY-MM-DD
+          const start_date = firstDay.toISOString().split('T')[0];
+          const end_date = lastDay.toISOString().split('T')[0];
+          
+          // Fetch events for the current month
+          const response = await apiService.getCalendarEvents({ start_date, end_date });
+          
+          // Remove duplicate events before storing them
+          const uniqueEvents = removeDuplicateEvents(response.events);
+          
+          // Update success state
+          set({
+            events: uniqueEvents,
+            isUsingFallbackData: false,
+            error: null,
+            isLoading: false
           });
+        } catch (error) {
+          console.error('Retry fetch failed:', error);
+          set(state => ({
+            ...state,
+            error: 'Retry failed. Please check your connection and try again.',
+            isLoading: false,
+            retryCount: state.retryCount + 1
+          }));
         }
       },
       

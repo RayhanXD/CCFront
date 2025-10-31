@@ -377,4 +377,4 @@ const webStyles = {
     width: '100%',
     outline: 'none',
   },
-} as const;
+}

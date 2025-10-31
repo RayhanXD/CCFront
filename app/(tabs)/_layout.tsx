@@ -1,25 +1,42 @@
 import React from "react";
 import { Tabs } from "expo-router";
-import { Home, BookOpen, Calendar, Search, User, MessageSquare } from 'lucide-react-native';
+import { View } from "react-native";
+import { Home, BookOpen, Calendar, Search, User } from 'lucide-react-native';
+import { useTheme } from "@/contexts/theme-context";
 import Colors from "@/constants/colors";
 
 export default function TabLayout() {
+  const { theme, isDarkMode } = useTheme();
+  
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textSecondary,
+        tabBarActiveTintColor: theme.primary,
+        tabBarInactiveTintColor: theme.textSecondary,
         tabBarStyle: {
-          borderTopColor: Colors.border,
+          borderTopColor: theme.border,
+          backgroundColor: theme.tabBar,
           height: 90,
           paddingBottom: 20,
           paddingTop: 10,
+          shadowColor: theme.shadow,
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: isDarkMode ? 0.5 : 0.1,
+          shadowRadius: 3,
+          elevation: 10,
         },
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
         },
         headerShown: false,
+        // Enhanced dark mode support
+        tabBarItemStyle: {
+          backgroundColor: theme.tabBar,
+        },
+        tabBarBackground: () => (
+          <View style={{ flex: 1, backgroundColor: theme.tabBar }} />
+        ),
       }}
     >
       <Tabs.Screen
@@ -41,13 +58,6 @@ export default function TabLayout() {
         options={{
           title: "Calendar",
           tabBarIcon: ({ color }) => <Calendar size={14} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="chatbot"
-        options={{
-          title: "Chat",
-          tabBarIcon: ({ color }) => <MessageSquare size={14} color={color} />,
         }}
       />
       <Tabs.Screen

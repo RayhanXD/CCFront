@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -129,7 +130,7 @@ export default function InterestsScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <Text style={styles.title}>What are you interested in?</Text>

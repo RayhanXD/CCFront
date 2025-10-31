@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -118,7 +119,7 @@ export default function OrganizationDetailsScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity 

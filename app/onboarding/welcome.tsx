@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -62,7 +63,7 @@ export default function WelcomeScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <View style={styles.logoContainer}>

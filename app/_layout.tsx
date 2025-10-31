@@ -3,14 +3,17 @@ import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { Platform, AppState } from "react-native";
+import { Platform, AppState, View } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { useUserStore } from "@/store/user-store";
 import { useEventsStore } from "@/store/events-store";
+import { useTheme } from "@/contexts/theme-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { trpc, trpcClient } from "@/lib/trpc";
 import { DialogProvider } from "@/context/DialogContext";
 import { ToastProvider } from "@/context/ToastContext";
+import { ThemeProvider } from "@/contexts/theme-context";
+import { LanguageProvider } from "@/contexts/language-context";
+import CustomStatusBar from "@/components/CustomStatusBar";
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
@@ -46,15 +49,17 @@ export default function RootLayout() {
 
   return (
     <ErrorBoundary>
-      <trpc.Provider client={trpcClient} queryClient={queryClient}>
-        <QueryClientProvider client={queryClient}>
-          <ToastProvider>
-            <DialogProvider>
-              <RootLayoutNav />
-            </DialogProvider>
-          </ToastProvider>
-        </QueryClientProvider>
-      </trpc.Provider>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <LanguageProvider>
+            <ToastProvider>
+              <DialogProvider>
+                <RootLayoutNav />
+              </DialogProvider>
+            </ToastProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
@@ -64,6 +69,7 @@ function RootLayoutNav() {
   const segments = useSegments();
   const { isOnboardingComplete, userProfile } = useUserStore();
   const { checkAndUpdateEvents } = useEventsStore();
+  const { theme } = useTheme();
 
   // Authentication effect
   useEffect(() => {
@@ -99,19 +105,45 @@ function RootLayoutNav() {
     };
   }, [userProfile]);
 
+  // Apply theme to navigation container
+  const getDefaultScreenOptions = () => ({
+    headerShown: false,
+    headerStyle: {
+      backgroundColor: theme?.white || '#FFFFFF',
+      borderBottomColor: theme?.border || '#E5E5E5',
+      borderBottomWidth: 1,
+    },
+    headerTintColor: theme?.text || '#1A1A1A',
+    headerTitleStyle: {
+      fontSize: 17,
+      fontWeight: '700' as '700',
+      fontFamily: Platform.OS === "ios" ? "System" : "normal",
+      color: theme?.text || '#1A1A1A',
+    },
+    headerBackTitleStyle: {
+      fontSize: 17,
+      fontFamily: Platform.OS === "ios" ? "System" : "normal",
+    },
+    contentStyle: {
+      backgroundColor: theme?.background || '#F8F7FF',
+    },
+    animation: 'slide_from_right' as const,
+    // Add these properties for better dark mode support
+    statusBarStyle: (theme?.text === '#FFFFFF' ? 'light' : 'dark') as 'light' | 'dark',
+    statusBarColor: theme?.background || '#F8F7FF',
+    navigationBarColor: theme?.background || '#F8F7FF',
+    // For modals
+    presentation: 'card' as 'card',
+    cardStyle: {
+      backgroundColor: theme?.background || '#F8F7FF',
+    },
+  });
+
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false,
-        headerTitleStyle: {
-          fontSize: 17,
-          fontFamily: Platform.OS === "ios" ? "System" : "normal",
-        },
-        headerBackTitleStyle: {
-          fontSize: 17,
-          fontFamily: Platform.OS === "ios" ? "System" : "normal",
-        },
-      }}
+    <>
+      <CustomStatusBar />
+      <Stack
+      screenOptions={getDefaultScreenOptions()}
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="modal" options={{ presentation: "modal" }} />
@@ -119,7 +151,9 @@ function RootLayoutNav() {
       <Stack.Screen name="onboarding" options={{ headerShown: false }} />
       <Stack.Screen name="auth/signin" options={{ headerShown: false }} />
       <Stack.Screen name="auth/signup" options={{ headerShown: false }} />
-      <Stack.Screen name="profile/edit" options={{ headerShown: true }} />
+      <Stack.Screen name="profile" options={{ headerShown: false }} />
+      <Stack.Screen name="chatbot" options={{ headerShown: false }} />
     </Stack>
+    </>
   );
 }

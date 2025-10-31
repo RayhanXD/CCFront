@@ -7,10 +7,10 @@ import {
   TextInput, 
   TouchableOpacity, 
   FlatList, 
-  StatusBar,
   Animated 
 } from 'react-native';
 import { Search, Shuffle, X } from 'lucide-react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useCampusStore } from '@/store/campus-store';
@@ -78,7 +78,7 @@ export default function ExploreScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <Text style={styles.title}>Explore</Text>

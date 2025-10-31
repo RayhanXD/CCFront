@@ -1,12 +1,12 @@
 import React from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
   StyleSheet, 
   SafeAreaView, 
   TouchableOpacity, 
-  ScrollView, 
-  StatusBar 
+  ScrollView
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
@@ -131,7 +131,7 @@ export default function ScholarshipDetailsScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity 

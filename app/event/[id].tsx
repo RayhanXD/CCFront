@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -7,9 +8,9 @@ import {
   TouchableOpacity, 
   Image, 
   ScrollView, 
-  StatusBar,
   Linking,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
@@ -29,16 +30,41 @@ import {
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
+import { useCalendarStore } from '@/store/calendar-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import { CalendarEvent } from '@/types/calendar';
+import { TodayEvent } from '@/types/events';
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { todayEvents, saveEvent, unsaveEvent, isEventSaved } = useEventsStore();
+  const { events: calendarEvents } = useCalendarStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [event, setEvent] = useState<CalendarEvent | TodayEvent | null>(null);
+  const [loading, setLoading] = useState(true);
   
-  // Find the event by ID
-  const event = todayEvents.find(event => event.id === id);
+  // Find the event by ID from either today's events or calendar events
+  useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    
+    // First check today's events
+    let foundEvent = todayEvents.find(e => e.id === id);
+    
+    // If not found, check calendar events
+    if (!foundEvent) {
+      const calendarEvent = calendarEvents.find(e => e.id === id);
+      if (calendarEvent) {
+        foundEvent = calendarEvent as unknown as TodayEvent;
+      }
+    }
+    
+    setEvent(foundEvent || null);
+    setLoading(false);
+  }, [id, todayEvents, calendarEvents]);
   
   // Check if event is saved
   const saved = event ? isEventSaved(event.id) : false;
@@ -53,7 +79,11 @@ export default function EventDetailsScreen() {
   // Handle share
   const handleShare = () => {
     if (event) {
-      const message = `Check out "${event.title}" on ${event.date} at ${event.startTime}!`;
+      const eventDate = 'date' in event ? event.date : '';
+      const eventTime = 'time' in event ? event.time : 
+                      ('startTime' in event ? event.startTime : '');
+      
+      const message = `Check out "${event.title}" on ${eventDate} at ${eventTime}!`;
       // In a real app, you would implement platform-specific sharing
       console.log('Share event:', message);
     }
@@ -109,6 +139,28 @@ export default function EventDetailsScreen() {
     return new Date(dateString).toLocaleDateString('en-US', options);
   };
   
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ChevronLeft size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Event Details</Text>
+          <View style={styles.placeholder} />
+        </View>
+        
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading event details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
   if (!event) {
     return (
       <SafeAreaView style={styles.container}>
@@ -138,7 +190,7 @@ export default function EventDetailsScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity 
@@ -159,14 +211,30 @@ export default function EventDetailsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.imageContainer}>
-          <Image 
-            source={{ uri: event.imageUrl }} 
-            style={styles.image}
-            resizeMode="cover"
-          />
-          <View style={styles.matchBadge}>
-            <Text style={styles.matchText}>{event.relevanceScore}% Match</Text>
-          </View>
+          {('imageUrl' in event && event.imageUrl) || ('img' in event && event.img) ? (
+            <Image 
+              source={{ uri: ('imageUrl' in event && event.imageUrl) ? event.imageUrl : 
+                       ('img' in event ? event.img : undefined) }} 
+              style={styles.image}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[styles.imagePlaceholder, 'color' in event && event.color ? { backgroundColor: event.color } : null]}>
+              <Calendar size={48} color={Colors.white} />
+            </View>
+          )}
+          
+          {'relevanceScore' in event && event.relevanceScore && (
+            <View style={styles.matchBadge}>
+              <Text style={styles.matchText}>{event.relevanceScore}% Match</Text>
+            </View>
+          )}
+          
+          {'isRecurring' in event && event.isRecurring && (
+            <View style={styles.recurringBadge}>
+              <Text style={styles.recurringBadgeText}>Recurring</Text>
+            </View>
+          )}
         </View>
         
         <View style={styles.contentContainer}>
@@ -188,29 +256,39 @@ export default function EventDetailsScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.categoryBadge}>
-            {event.tags && event.tags.length > 0 && (
-              <>
-                <Tag size={14} color={Colors.primary} />
-                <Text style={styles.categoryText}>{event.tags[0]}</Text>
-              </>
-            )}
-          </View>
+          {'tags' in event && event.tags && event.tags.length > 0 && (
+            <View style={styles.categoryBadge}>
+              <Tag size={14} color={Colors.primary} />
+              <Text style={styles.categoryText}>{event.tags[0]}</Text>
+            </View>
+          )}
           
           <View style={styles.infoContainer}>
-            <View style={styles.infoItem}>
-              <Calendar size={16} color={Colors.textSecondary} />
-              <Text style={styles.infoText}>
-                {formatDate(event.date)}
-              </Text>
-            </View>
+            {'date' in event && event.date && (
+              <View style={styles.infoItem}>
+                <Calendar size={16} color={Colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  {formatDate(event.date)}
+                </Text>
+              </View>
+            )}
             
             <View style={styles.infoItem}>
               <Clock size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
-                {event.startTime} - {event.endTime}
+                {'time' in event && event.time ? event.time : 
+                 ('startTime' in event && 'endTime' in event) ? `${event.startTime} - ${event.endTime}` : 'Time not specified'}
               </Text>
             </View>
+            
+            {'duration' in event && event.duration && (
+              <View style={styles.infoItem}>
+                <Clock size={16} color={Colors.textSecondary} />
+                <Text style={styles.infoText}>
+                  Duration: {event.duration} minutes
+                </Text>
+              </View>
+            )}
             
             {event.location ? (
               <View style={styles.infoItem}>
@@ -224,31 +302,35 @@ export default function EventDetailsScreen() {
             <View style={styles.infoItem}>
               <User size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
-                Organized by: {event.organizer}
+                Organized by: {'organizer' in event ? event.organizer : 'Unknown'}
               </Text>
             </View>
           </View>
           
           <View style={styles.divider} />
           
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>About This Event</Text>
-            <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
-              {event.description}
-            </Text>
-            {event.description && event.description.length > 150 && (
-              <TouchableOpacity 
-                style={styles.readMoreButton}
-                onPress={() => setShowFullDescription(!showFullDescription)}
-              >
-                <Text style={styles.readMoreText}>
-                  {showFullDescription ? 'Show Less' : 'Read More'}
+          {'description' in event && event.description && (
+            <>
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>About This Event</Text>
+                <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
+                  {event.description}
                 </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          <View style={styles.divider} />
+                {event.description.length > 150 && (
+                  <TouchableOpacity 
+                    style={styles.readMoreButton}
+                    onPress={() => setShowFullDescription(!showFullDescription)}
+                  >
+                    <Text style={styles.readMoreText}>
+                      {showFullDescription ? 'Show Less' : 'Read More'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              
+              <View style={styles.divider} />
+            </>
+          )}
           
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Event Details</Text>
@@ -270,7 +352,11 @@ export default function EventDetailsScreen() {
                 </View>
                 <View style={styles.detailContent}>
                   <Text style={styles.detailTitle}>Who Should Attend</Text>
-                  <Text style={styles.detailText}>Students interested in {event.tags.join(', ')}. All experience levels welcome.</Text>
+                  <Text style={styles.detailText}>
+                    {'tags' in event && event.tags && event.tags.length > 0 
+                      ? `Students interested in ${event.tags.join(', ')}. All experience levels welcome.`
+                      : 'All students are welcome to attend this event.'}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -278,17 +364,19 @@ export default function EventDetailsScreen() {
           
           <View style={styles.divider} />
           
-          <View style={styles.tagsContainer}>
-            <Text style={styles.tagsTitle}>Tags:</Text>
-            <View style={styles.tagsList}>
-              {event.tags.map((tag, index) => (
-                <View key={`tag-${index}`} style={styles.tag}>
-                  <Tag size={12} color={Colors.primary} />
-                  <Text style={styles.tagText}>{tag}</Text>
-                </View>
-              ))}
+          {'tags' in event && event.tags && event.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              <Text style={styles.tagsTitle}>Tags:</Text>
+              <View style={styles.tagsList}>
+                {event.tags.map((tag: string, index: number) => (
+                  <View key={`tag-${index}`} style={styles.tag}>
+                    <Tag size={12} color={Colors.primary} />
+                    <Text style={styles.tagText}>{tag}</Text>
+                  </View>
+                ))}
+              </View>
             </View>
-          </View>
+          )}
           
           <TouchableOpacity 
             style={styles.registerButton}
@@ -346,6 +434,13 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
+  },
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   matchBadge: {
     position: 'absolute',
@@ -575,4 +670,29 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '500',
   },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: Colors.textSecondary,
+  },
+  recurringBadge: {
+    position: 'absolute',
+    bottom: 16,
+    right: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  recurringBadgeText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '500',
+  },
 });
+

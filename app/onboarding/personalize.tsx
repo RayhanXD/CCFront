@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -81,7 +82,7 @@ export default function PersonalizeScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <CustomStatusBar style="dark" />
       
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}

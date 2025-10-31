@@ -1,37 +1,155 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, StatusBar, Image, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, MapPin, Clock, Calendar, RefreshCw } from 'lucide-react-native';
+import { ChevronLeft, Calendar, RefreshCw, CalendarDays } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
 import { TodayEvent } from '@/types/events';
+import EventCard from '@/components/EventCard';
 
 export default function AllTodayEventsScreen() {
   const router = useRouter();
   const { 
-    todayEvents: events, 
+    todayEvents, 
+    futureEvents,
     isLoading, 
     error,
     fetchTodayEvents, 
+    fetchFutureEvents,
     checkAndUpdateEvents 
   } = useEventsStore();
   const [refreshing, setRefreshing] = useState(false);
+  const [sortedEvents, setSortedEvents] = useState<any[]>([]);
+  const [sortedFutureEvents, setSortedFutureEvents] = useState<any[]>([]);
+  const [showingFutureEvents, setShowingFutureEvents] = useState(false);
+  
+  // Helper function to check if a date is today
+  const isToday = (dateString: string): boolean => {
+    const date = new Date(dateString);
+    const today = new Date();
+    return date.getDate() === today.getDate() &&
+           date.getMonth() === today.getMonth() &&
+           date.getFullYear() === today.getFullYear();
+  };
+  
+  // Helper function to parse time string to Date object
+  const parseTimeString = (timeStr: string): Date => {
+    if (!timeStr) return new Date(0); // Default to epoch if no time
+    
+    // Try to handle different time formats
+    try {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Handle "10:00 AM" format
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (match) {
+        let hours = parseInt(match[1], 10);
+        const minutes = parseInt(match[2], 10);
+        const ampm = match[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if AM/PM is specified
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        
+        return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes);
+      }
+      
+      // If no match, return the current date
+      return today;
+    } catch (error) {
+      console.log('Error parsing time:', error);
+      return new Date(); // Return current date/time as fallback
+    }
+  };
+  
+  // Filter events to only include today's events and sort them by time
+  const filterAndSortEvents = (eventsToProcess: any[]) => {
+    // First filter to only include today's events
+    const todaysEvents = eventsToProcess.filter(event => {
+      const eventDate = 'date' in event ? event.date : null;
+      return eventDate ? isToday(eventDate) : false;
+    });
+    
+    // Then sort by time
+    return [...todaysEvents].sort((a, b) => {
+      // Get time from either time or startTime property
+      const timeA = 'time' in a ? a.time : ('startTime' in a ? a.startTime : '');
+      const timeB = 'time' in b ? b.time : ('startTime' in b ? b.startTime : '');
+      
+      // Parse the time strings to Date objects
+      const dateA = parseTimeString(timeA);
+      const dateB = parseTimeString(timeB);
+      
+      // Sort by time (ascending)
+      return dateA.getTime() - dateB.getTime();
+    });
+  };
+  
+  // Filter and sort events whenever todayEvents or futureEvents change
+  useEffect(() => {
+    // Debug logs
+    console.log('Today Events:', todayEvents?.length || 0);
+    console.log('Future Events:', futureEvents?.length || 0);
+    
+    // Process today's events
+    if (todayEvents && todayEvents.length > 0) {
+      const filtered = filterAndSortEvents(todayEvents);
+      setSortedEvents(filtered);
+      setShowingFutureEvents(false);
+      console.log('Showing today events, count:', filtered.length);
+    } else {
+      setSortedEvents([]);
+      setShowingFutureEvents(true);
+      console.log('No today events, should show future events');
+    }
+    
+    // Process future events
+    if (futureEvents && futureEvents.length > 0) {
+      // Sort future events by date (closest first)
+      const sorted = [...futureEvents].sort((a, b) => {
+        const dateA = new Date(a.date);
+        const dateB = new Date(b.date);
+        return dateA.getTime() - dateB.getTime();
+      });
+      setSortedFutureEvents(sorted);
+      console.log('Future events sorted, count:', sorted.length);
+    } else {
+      setSortedFutureEvents([]);
+      console.log('No future events available');
+    }
+  }, [todayEvents, futureEvents]);
   
   useEffect(() => {
     // Check if we need to update today's events when the screen loads
+    console.log('Initial load - fetching events');
     checkAndUpdateEvents();
+    
+    // Explicitly fetch future events to ensure they're loaded
+    fetchFutureEvents();
   }, []);
+  
+  // Debug the current state
+  useEffect(() => {
+    console.log('Current state:', {
+      todayEventsCount: sortedEvents.length,
+      futureEventsCount: sortedFutureEvents.length,
+      showingFuture: showingFutureEvents
+    });
+  }, [sortedEvents, sortedFutureEvents, showingFutureEvents]);
   
   // Handle pull-to-refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await fetchTodayEvents();
+    await fetchFutureEvents();
     setRefreshing(false);
   };
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity 
@@ -40,7 +158,11 @@ export default function AllTodayEventsScreen() {
         >
           <ChevronLeft size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Today's Events</Text>
+        <Text style={styles.headerTitle}>
+          {sortedEvents.length > 0 ? 
+            `Today's Events (${new Date().toLocaleDateString()})` : 
+            'Upcoming Events'}
+        </Text>
         <View style={styles.placeholder} />
       </View>
       
@@ -60,11 +182,53 @@ export default function AllTodayEventsScreen() {
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : events.length === 0 ? (
+      ) : sortedEvents.length === 0 && sortedFutureEvents.length === 0 ? (
         <View style={styles.noEventsContainer}>
           <Calendar size={48} color={Colors.textSecondary} />
-          <Text style={styles.noEventsText}>No events scheduled for today</Text>
+          <Text style={styles.noEventsText}>No events scheduled for today or in the future</Text>
+          <TouchableOpacity 
+            style={styles.debugButton}
+            onPress={() => {
+              console.log('Debug button pressed');
+              fetchFutureEvents();
+            }}
+          >
+            <Text style={styles.debugButtonText}>Debug: Load Future Events</Text>
+          </TouchableOpacity>
         </View>
+      ) : (sortedEvents.length === 0 && sortedFutureEvents.length > 0) ? (
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
+          }
+        >
+          <View style={styles.futureEventsHeader}>
+            <CalendarDays size={24} color={Colors.primary} />
+            <Text style={styles.futureEventsTitle}>Upcoming Events</Text>
+          </View>
+          <Text style={styles.noTodayEventsText}>No events scheduled for today. Here are upcoming events:</Text>
+          
+          <View style={styles.gridContainer}>
+            {sortedFutureEvents.map(event => (
+              <View key={event.id} style={styles.eventCardContainer}>
+                <EventCard 
+                  event={event} 
+                  variant="vertical" 
+                  showLearnMore={false}
+                  showRelevanceScore={true}
+                />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <ScrollView 
           style={styles.scrollView}
@@ -80,66 +244,15 @@ export default function AllTodayEventsScreen() {
           }
         >
           <View style={styles.gridContainer}>
-            {events.map(event => (
-              <TouchableOpacity 
-                key={event.id} 
-                style={styles.eventCard}
-                onPress={() => router.push(`/event/${event.id}`)}
-              >
-                <View style={styles.eventImageContainer}>
-                  {('imageUrl' in event && event.imageUrl) ? (
-                    <Image 
-                      source={{ uri: event.imageUrl }} 
-                      style={styles.eventImage}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={[styles.eventImagePlaceholder, 'color' in event && event.color ? { backgroundColor: event.color as string } : null]}>
-                      <Calendar size={24} color={Colors.white} />
-                    </View>
-                  )}
-                  {/* Type guard to ensure color exists and is a string */}
-                  {(() => {
-                    if ('color' in event && typeof event.color === 'string') {
-                      return <View style={[styles.eventColorTag, { backgroundColor: event.color }]} />;
-                    }
-                    return null;
-                  })()}
-                </View>
-                
-                <View style={styles.eventContent}>
-                  <Text style={styles.eventTitle} numberOfLines={2}>{event.title}</Text>
-                  
-                  {event.location ? (
-                    <View style={styles.eventDetail}>
-                      <MapPin size={14} color={Colors.textSecondary} />
-                      <Text style={styles.eventDetailText} numberOfLines={1}>{event.location}</Text>
-                    </View>
-                  ) : null}
-                  
-                  <View style={styles.eventDetail}>
-                    <Clock size={14} color={Colors.textSecondary} />
-                    <Text style={styles.eventDetailText}>
-                      {/* Safe time display with proper type checking */}
-                      {(() => {
-                        // For TodayEvent type
-                        if ('startTime' in event && typeof event.startTime === 'string') {
-                          if ('endTime' in event && typeof event.endTime === 'string') {
-                            return `${event.startTime} - ${event.endTime}`;
-                          }
-                          return event.startTime;
-                        } 
-                        // For CalendarEvent type
-                        else if ('time' in event && typeof event.time === 'string') {
-                          return event.time;
-                        }
-                        // Fallback
-                        return 'Time not specified';
-                      })()}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
+            {sortedEvents.map(event => (
+              <View key={event.id} style={styles.eventCardContainer}>
+                <EventCard 
+                  event={event} 
+                  variant="vertical" 
+                  showLearnMore={false}
+                  showRelevanceScore={true}
+                />
+              </View>
             ))}
           </View>
         </ScrollView>
@@ -200,6 +313,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
+  },
+  eventCardContainer: {
+    width: cardWidth,
+    marginBottom: 16,
   },
   eventImageContainer: {
     position: 'relative',
@@ -287,9 +404,39 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   noEventsText: {
-    marginTop: 16,
-    fontSize: 16,
     color: Colors.textSecondary,
+    fontSize: 14,
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  noTodayEventsText: {
+    color: Colors.textSecondary,
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+    marginHorizontal: 20,
+  },
+  debugButton: {
+    backgroundColor: '#333',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 20,
+  },
+  debugButtonText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  futureEventsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    marginHorizontal: 16,
+    gap: 8,
+  },
+  futureEventsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
   },
 });

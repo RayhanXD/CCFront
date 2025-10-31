@@ -8,12 +8,15 @@ interface ChatState {
   isTyping: boolean;
   isStreaming: boolean;
   systemMessage: string;
+  error: Error | null;
   addMessage: (message: Message) => void;
   setMessages: (messages: Message[]) => void;
   clearMessages: () => void;
   setIsTyping: (isTyping: boolean) => void;
   setIsStreaming: (isStreaming: boolean) => void;
   setSystemMessage: (systemMessage: string) => void;
+  setError: (error: Error | null) => void;
+  clearError: () => void;
 }
 
 export const useChatStore = create<ChatState>()(
@@ -22,6 +25,7 @@ export const useChatStore = create<ChatState>()(
       messages: [],
       isTyping: false,
       isStreaming: false,
+      error: null,
       systemMessage: 'You are CampusAI, a helpful assistant for college students. You provide information about campus resources, events, scholarships, and academic information.',
       addMessage: (message) => set((state) => ({ 
         messages: [...state.messages, message] 
@@ -31,6 +35,8 @@ export const useChatStore = create<ChatState>()(
       setIsTyping: (isTyping) => set({ isTyping }),
       setIsStreaming: (isStreaming) => set({ isStreaming }),
       setSystemMessage: (systemMessage) => set({ systemMessage }),
+      setError: (error) => set({ error }),
+      clearError: () => set({ error: null }),
     }),
     {
       name: 'chat-storage',

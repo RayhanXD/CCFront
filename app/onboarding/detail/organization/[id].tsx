@@ -6,9 +6,9 @@ import {
   SafeAreaView, 
   TouchableOpacity, 
   Image, 
-  ScrollView, 
-  StatusBar 
+  ScrollView
 } from 'react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ChevronLeft, 
@@ -71,7 +71,7 @@ export default function OrganizationDetailsScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <TouchableOpacity 

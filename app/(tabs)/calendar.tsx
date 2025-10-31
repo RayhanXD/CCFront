@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, StatusBar, Dimensions, ActivityIndicator, Image } from 'react-native';
-import { ChevronLeft, ChevronRight, Plus, MapPin, Clock, RefreshCw, ChevronDown, Calendar as CalendarIcon } from 'lucide-react-native';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import CustomStatusBar from '@/components/CustomStatusBar';
+import { ChevronLeft, ChevronRight, Plus, RefreshCw, ChevronDown, Calendar as CalendarIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useCalendarStore, useInitializeCalendar } from '@/store/calendar-store';
 import { CalendarEvent } from '@/types/calendar';
+import EventCard from '@/components/EventCard';
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
@@ -267,67 +269,13 @@ export default function CalendarScreen() {
     return (
       <>
         {eventsToShow.map(event => (
-          <View key={event.id} style={styles.eventCard}>
-            {event.img ? (
-              <View style={styles.eventImageContainer}>
-                <Image 
-                  source={{ uri: event.img }} 
-                  style={styles.eventImage}
-                  resizeMode="cover"
-                />
-                {event.color && (
-                  <View style={[styles.eventColorTag, { backgroundColor: event.color }]} />
-                )}
-                {event.isRecurring && (
-                  <View style={styles.recurringBadge}>
-                    <Text style={styles.recurringBadgeText}>Recurring</Text>
-                  </View>
-                )}
-              </View>
-            ) : event.color ? (
-              <>
-                <View style={[styles.eventColorBanner, { backgroundColor: event.color }]} />
-                {event.isRecurring && (
-                  <View style={styles.recurringBadgeAlt}>
-                    <Text style={styles.recurringBadgeText}>Recurring</Text>
-                  </View>
-                )}
-              </>
-            ) : event.isRecurring ? (
-              <View style={styles.recurringBadgeAlt}>
-                <Text style={styles.recurringBadgeText}>Recurring</Text>
-              </View>
-            ) : null}
-            
-            <View style={styles.eventContent}>
-              <View style={styles.eventHeader}>
-                <Text style={styles.eventTitle}>{event.title}</Text>
-                <View style={styles.eventDuration}>
-                  <Text style={styles.eventDurationText}>{event.duration} min</Text>
-                </View>
-              </View>
-              
-              <View style={styles.eventDetail}>
-                <MapPin size={16} color={Colors.textSecondary} />
-                <Text style={styles.eventDetailText}>{event.location}</Text>
-              </View>
-              
-              <View style={styles.eventDetail}>
-                <Clock size={16} color={Colors.textSecondary} />
-                <Text style={styles.eventDetailText}>{event.time}</Text>
-              </View>
-              
-              {event.description && (
-                <Text 
-                  style={styles.eventDescription} 
-                  numberOfLines={2} 
-                  ellipsizeMode="tail"
-                >
-                  {event.description}
-                </Text>
-              )}
-            </View>
-          </View>
+          <EventCard
+            key={event.id}
+            event={event}
+            variant="calendar"
+            showLearnMore={false}
+            showRelevanceScore={false}
+          />
         ))}
         
         {hasMoreEvents && (
@@ -345,7 +293,7 @@ export default function CalendarScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor={Colors.background} />
+      <CustomStatusBar style="dark" />
       
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Calendar</Text>

@@ -1,4 +1,5 @@
 import React from 'react';
+import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
@@ -25,7 +26,7 @@ export default function OnboardingStartScreen() {
   
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" />
+      <CustomStatusBar style="light" />
       
       <LinearGradient
         colors={[Colors.primary, '#6344E8']}

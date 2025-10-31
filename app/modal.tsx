@@ -1,5 +1,5 @@
-import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet, Text, View } from "react-native";
+import CustomStatusBar from "@/components/CustomStatusBar";
 
 export default function ModalScreen() {
   return (
@@ -9,7 +9,7 @@ export default function ModalScreen() {
       <Text>This is an example modal. You can edit it in app/modal.tsx.</Text>
 
       {/* Use a light status bar on iOS to account for the black space above the modal */}
-      <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
+      <CustomStatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
     </View>
   );
 }
