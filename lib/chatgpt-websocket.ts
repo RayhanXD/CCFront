@@ -24,7 +24,10 @@ class ChatGPTWebSocket {
   // Connect to the WebSocket server
   async connect(): Promise<boolean> {
     // If already connecting, don't try again
-    if (this.isConnecting) return false;
+    if (this.isConnecting) {
+      console.log('WebSocket connection already in progress');
+      return false;
+    }
     
     this.isConnecting = true;
     
@@ -41,6 +44,7 @@ class ChatGPTWebSocket {
       
       // Get WebSocket URL from API service
       const wsUrl = apiService.getChatGPTWebSocketUrl(this.userEmail);
+      console.log(`Attempting to connect to WebSocket at: ${wsUrl}`);
       
       // Create WebSocket connection
       this.ws = new WebSocket(wsUrl);
@@ -49,16 +53,29 @@ class ChatGPTWebSocket {
       this.setupEventHandlers();
       
       return new Promise((resolve) => {
+        // Set a timeout for connection
+        const connectionTimeout = setTimeout(() => {
+          console.error('WebSocket connection timed out');
+          this.isConnecting = false;
+          if (this.ws) {
+            this.ws.close();
+            this.ws = null;
+          }
+          resolve(false);
+        }, 10000); // 10 seconds timeout
+        
         // Wait for connection to open or fail
         this.ws!.onopen = () => {
-          console.log('ChatGPT WebSocket connected');
+          console.log(`ChatGPT WebSocket connected successfully for user: ${this.userEmail}`);
+          clearTimeout(connectionTimeout);
           this.isConnecting = false;
           this.reconnectAttempts = 0;
           resolve(true);
         };
         
         this.ws!.onerror = (error) => {
-          console.error('ChatGPT WebSocket connection error:', error);
+          console.error(`ChatGPT WebSocket connection error for ${wsUrl}:`, error);
+          clearTimeout(connectionTimeout);
           this.isConnecting = false;
           resolve(false);
         };
@@ -79,6 +96,23 @@ class ChatGPTWebSocket {
         // Handle incoming message
         const data = event.data;
         
+        console.log(`WebSocket received data: ${typeof data === 'string' ? data.substring(0, 50) + '...' : 'non-string data'}`);
+        
+        // Check if the message is an error message
+        if (typeof data === 'string' && data.includes('"error":')) {
+          try {
+            const errorData = JSON.parse(data);
+            if (errorData.error) {
+              console.error('WebSocket error message received:', errorData.error);
+              const chatStore = useChatStore.getState();
+              chatStore.setError(new Error(errorData.error));
+              return;
+            }
+          } catch (parseError) {
+            console.error('Error parsing WebSocket error message:', parseError);
+          }
+        }
+        
         // Check if it's an error message
         if (typeof data === 'string' && data.startsWith('Error:')) {
           console.error('ChatGPT WebSocket error:', data);
@@ -88,6 +122,16 @@ class ChatGPTWebSocket {
         // Check if it's a "no history" message
         if (typeof data === 'string' && data.includes('no chat history')) {
           console.log('No chat history found for user');
+          return;
+        }
+        
+        // Check if it's a ping/heartbeat message
+        if (typeof data === 'string' && (data === 'ping' || data === 'heartbeat')) {
+          console.log('Received heartbeat from server');
+          // Send pong response if needed
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send('pong');
+          }
           return;
         }
         
@@ -122,8 +166,11 @@ class ChatGPTWebSocket {
     }
     
     // Create a message ID for the streaming response
-    const messageId = Date.now().toString();
+    // Prefix with 'bot-' to clearly identify it as a bot message
+    const messageId = `bot-${Date.now().toString()}`;
     this.currentStreamingMessageId = messageId;
+    
+    console.log(`Creating new message stream with ID: ${messageId}`);
     
     // Prepare the message
     const message: WebSocketMessage = {
@@ -165,7 +212,7 @@ class ChatGPTWebSocket {
     
     // If we don't have a current message ID, create one
     if (!this.currentStreamingMessageId) {
-      this.currentStreamingMessageId = Date.now().toString();
+      this.currentStreamingMessageId = `bot-${Date.now().toString()}`;
     }
     
     try {
@@ -195,7 +242,7 @@ class ChatGPTWebSocket {
     
     // Check if we already have a message with this ID
     const existingMessageIndex = chatStore.messages.findIndex(
-      (msg) => msg.id === this.currentStreamingMessageId
+      (msg) => msg.id === this.currentStreamingMessageId && msg.sender === 'bot'
     );
     
     if (existingMessageIndex === -1) {
@@ -203,20 +250,39 @@ class ChatGPTWebSocket {
       const botMessage: Message = {
         id: this.currentStreamingMessageId,
         text: data,
-        sender: 'bot',
+        sender: 'bot', // Explicitly set sender as 'bot'
         timestamp: new Date().toISOString(),
       };
       
+      console.log('Creating new bot message:', botMessage);
       chatStore.addMessage(botMessage);
     } else {
       // Update existing message
       const updatedMessages = [...chatStore.messages];
-      updatedMessages[existingMessageIndex] = {
-        ...updatedMessages[existingMessageIndex],
-        text: updatedMessages[existingMessageIndex].text + data,
-      };
+      const existingMessage = updatedMessages[existingMessageIndex];
       
-      chatStore.setMessages(updatedMessages);
+      // Ensure we're only updating bot messages
+      if (existingMessage.sender === 'bot') {
+        updatedMessages[existingMessageIndex] = {
+          ...existingMessage,
+          text: existingMessage.text + data,
+          sender: 'bot', // Ensure sender remains 'bot'
+        };
+        
+        console.log('Updating bot message:', updatedMessages[existingMessageIndex]);
+        chatStore.setMessages(updatedMessages);
+      } else {
+        console.warn('Attempted to update a non-bot message with bot content');
+        // Create a new bot message instead
+        const botMessage: Message = {
+          id: `bot-${Date.now().toString()}`,
+          text: data,
+          sender: 'bot',
+          timestamp: new Date().toISOString(),
+        };
+        
+        chatStore.addMessage(botMessage);
+      }
     }
     
     if (data.endsWith('.') || data.endsWith('!') || data.endsWith('?') || 

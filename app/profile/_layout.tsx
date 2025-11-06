@@ -24,7 +24,7 @@ export default function ProfileLayout() {
       <Stack.Screen 
         name="saved" 
         options={{ 
-          headerShown: true,
+          headerShown: false,
           title: 'Saved Items',
           headerLeft: () => <BackButton />
         }} 
@@ -41,7 +41,7 @@ export default function ProfileLayout() {
       <Stack.Screen 
         name="settings" 
         options={{
-          headerShown: true,
+          headerShown: false,
           title: 'Settings',
           headerLeft: () => <BackButton />
         }} 

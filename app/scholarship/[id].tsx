@@ -24,8 +24,8 @@ import Colors from '@/constants/colors';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { LinearGradient } from 'expo-linear-gradient';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
-import { useDialog } from '@/context/DialogContext';
-import { useToast } from '@/context/ToastContext';
+import { useDialog } from '@/contexts/dialog-context';
+import { useToast } from '@/contexts/toast-context';
 
 export default function ScholarshipDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -1,11 +1,13 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, Platform } from 'react-native';
+import React, { memo, useMemo } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Clock, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { Organization } from '@/types/campus';
 import AnimatedCard from '@/components/AnimatedCard';
 import InsightButton from '@/components/InsightButton';
+import OptimizedImage from '@/components/OptimizedImage';
 import { useUserStore } from '@/store/user-store';
+import { useTheme } from '@/contexts/theme-context';
 
 interface OrganizationCardProps {
   organization: Organization;
@@ -14,17 +16,25 @@ interface OrganizationCardProps {
 
 const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
   const { userProfile } = useUserStore();
+  const { theme, isDarkMode } = useTheme();
   
   return (
     <AnimatedCard
-      style={styles.container}
+      style={[styles.container, { 
+        backgroundColor: theme.cardBackground,
+        shadowColor: isDarkMode ? '#000' : '#000',
+        shadowOpacity: isDarkMode ? 0.3 : 0.05,
+        elevation: isDarkMode ? 4 : 2,
+      }]}
       onPress={() => onPress(organization.id)}
     >
-      <View style={styles.imageContainer}>
-        <Image 
-          source={{ uri: organization.imageUrl }} 
+      <View style={[styles.imageContainer, { backgroundColor: isDarkMode ? theme.primaryDark : theme.primaryLight }]}>
+        <OptimizedImage
+          source={{ uri: organization.imageUrl }}
           style={styles.image}
-          resizeMode="cover"
+          contentFit="cover"
+          transition={300}
+          cachePolicy="memory-disk"
         />
         <InsightButton 
           itemType="organization"
@@ -33,26 +43,28 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
           userProfile={userProfile}
           itemId={organization.id}
         />
-        <View style={styles.matchBadge}>
+        <View style={[styles.matchBadge, { backgroundColor: theme.matchBadge }]}>
           <Text style={styles.matchText}>{organization.matchPercentage}%</Text>
         </View>
       </View>
       
       <View style={styles.contentContainer}>
         <View style={styles.textContainer}>
-          <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">{organization.name}</Text>
+          <Text style={[styles.title, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
+            {organization.name}
+          </Text>
           
           <View style={styles.infoContainer}>
             <View style={styles.infoRow}>
-              <Clock size={12} color="#666666" />
-              <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="tail">
+              <Clock size={12} color={isDarkMode ? theme.textSecondary : '#666666'} strokeWidth={isDarkMode ? 2.5 : 2} />
+              <Text style={[styles.infoText, { color: theme.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                 {organization.meetingTime}
               </Text>
             </View>
             
             <View style={styles.infoRow}>
-              <MapPin size={12} color="#666666" />
-              <Text style={styles.infoText} numberOfLines={1} ellipsizeMode="tail">
+              <MapPin size={12} color={isDarkMode ? theme.textSecondary : '#666666'} strokeWidth={isDarkMode ? 2.5 : 2} />
+              <Text style={[styles.infoText, { color: theme.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
                 {organization.location}
               </Text>
             </View>
@@ -65,7 +77,6 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.white,
     borderRadius: 12,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -78,18 +89,15 @@ const styles = StyleSheet.create({
   imageContainer: {
     position: 'relative',
     height: 100,
-    backgroundColor: Colors.primaryLight,
   },
   image: {
     width: '100%',
     height: '100%',
-    backgroundColor: Colors.primaryLight,
   },
   matchBadge: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: Colors.matchBadge,
     paddingHorizontal: 12,
     paddingVertical: 5,
     borderRadius: 100,
@@ -111,7 +119,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1a1a1a',
     marginBottom: 8,
     lineHeight: 20,
   },
@@ -126,10 +133,10 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 13,
-    color: '#666666',
     lineHeight: 18,
     flex: 1,
   },
 });
 
-export default OrganizationCard;
+// Memoize the component to prevent unnecessary re-renders
+export default memo(OrganizationCard);

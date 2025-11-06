@@ -13,8 +13,8 @@ import { ChevronLeft, Bookmark, Calendar } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
 import AnimatedCard from '@/components/AnimatedCard';
-import { useDialog } from '@/context/DialogContext';
-import { useToast } from '@/context/ToastContext';
+import { useDialog } from '@/contexts/dialog-context';
+import { useToast } from '@/contexts/toast-context';
 
 export default function SavedEventsScreen() {
   const router = useRouter();

@@ -155,7 +155,30 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <CustomStatusBar />
+      <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
+      
+      {/* Custom Header */}
+      <View style={[
+        styles.header, 
+        { 
+          borderBottomColor: theme.border,
+          backgroundColor: theme.background,
+          shadowColor: isDarkMode ? '#000' : theme.shadow,
+          shadowOpacity: isDarkMode ? 0.3 : 0.1,
+        }
+      ]}>
+        <TouchableOpacity 
+          style={styles.backButton}
+          onPress={() => router.back()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ArrowLeft size={24} color={theme.text} strokeWidth={isDarkMode ? 2.5 : 2} />
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          {t.settings.title}
+        </Text>
+        <View style={styles.headerRight} />
+      </View>
 
       <ScrollView 
         style={styles.scrollView}
@@ -332,12 +355,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  backButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  backButton: {
+    padding: 4,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+    zIndex: 10,
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    flex: 1,
+    textAlign: 'center',
+  },
+  headerRight: {
+    width: 32,
+  },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    paddingTop: 10,
-    paddingBottom: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
   sectionTitle: {
     fontSize: 16,

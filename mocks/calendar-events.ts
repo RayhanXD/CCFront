@@ -45,6 +45,7 @@ export const calendarEvents: CalendarEvent[] = [
     duration: 90,
     location: 'Auditorium',
     description: 'Guest speaker from Google discussing AI advancements',
+    isRecurring: false,
   },
   {
     id: '6',
@@ -54,5 +55,28 @@ export const calendarEvents: CalendarEvent[] = [
     duration: 45,
     location: 'Student Activities Center',
     description: 'Register for campus clubs and organizations',
+    isRecurring: false,
+  },
+  {
+    id: '7',
+    title: 'Weekly Study Group',
+    date: new Date().toISOString(), // Today
+    time: '4:00 PM',
+    duration: 120,
+    location: 'Library, Study Room 5',
+    description: 'Recurring weekly study group for Computer Science students',
+    isRecurring: true,
+    color: '#4CAF50',
+  },
+  {
+    id: '8',
+    title: 'Fitness Class',
+    date: new Date().toISOString(), // Today
+    time: '7:00 AM',
+    duration: 60,
+    location: 'Recreation Center',
+    description: 'Weekly fitness class - bring your student ID and water bottle',
+    isRecurring: true,
+    color: '#FF9800',
   }
 ];

@@ -1,14 +1,20 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Platform, TouchableOpacity, ScrollView, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
+import { RefreshCw, Home, AlertTriangle } from 'lucide-react-native';
 
 interface Props {
   children: React.ReactNode;
   onError?: (error: Error, errorInfo: React.ErrorInfo) => void;
+  fallback?: React.ReactNode;
 }
 
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: React.ErrorInfo | null;
+  errorCount: number;
 }
 
 const IFRAME_ID = 'rork-web-preview';
@@ -85,40 +91,134 @@ if (Platform.OS === 'web' && typeof window !== 'undefined') {
   };
 }
 
+// Custom error fallback component
+const ErrorFallback = ({ error, resetError }: { error: Error | null, resetError: () => void }) => {
+  const router = useRouter();
+  const [showDetails, setShowDetails] = useState(false);
+  
+  const handleGoHome = () => {
+    resetError();
+    router.replace('/');
+  };
+  
+  return (
+    <View style={styles.container}>
+      <View style={styles.content}>
+        <AlertTriangle size={48} color="#F44336" style={styles.icon} />
+        <Text style={styles.title}>Something went wrong</Text>
+        <Text style={styles.subtitle}>
+          {error?.message || 'An unexpected error occurred'}
+        </Text>
+        
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity style={styles.button} onPress={resetError}>
+            <RefreshCw size={18} color="#FFFFFF" />
+            <Text style={styles.buttonText}>Try Again</Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity style={[styles.button, styles.homeButton]} onPress={handleGoHome}>
+            <Home size={18} color="#FFFFFF" />
+            <Text style={styles.buttonText}>Go Home</Text>
+          </TouchableOpacity>
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.detailsToggle}
+          onPress={() => setShowDetails(!showDetails)}
+        >
+          <Text style={styles.detailsToggleText}>
+            {showDetails ? 'Hide Details' : 'Show Details'}
+          </Text>
+        </TouchableOpacity>
+        
+        {showDetails && (
+          <ScrollView style={styles.detailsContainer}>
+            <Text style={styles.detailsText}>{error?.stack}</Text>
+          </ScrollView>
+        )}
+      </View>
+    </View>
+  );
+};
+
 export class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { 
+      hasError: false, 
+      error: null, 
+      errorInfo: null,
+      errorCount: 0
+    };
+    
+    this.resetError = this.resetError.bind(this);
   }
 
   static getDerivedStateFromError(error: Error) {
-    return { hasError: true, error };
+    return (prevState: State) => ({
+      hasError: true, 
+      error,
+      errorCount: prevState.errorCount + 1
+    });
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error to external service
     sendErrorToIframeParent(error, errorInfo);
+    
+    // Store error info for potential display
+    this.setState({ errorInfo });
+    
+    // Save error to persistent storage for analytics
+    this.persistError(error, errorInfo);
+    
+    // Call custom error handler if provided
     if (this.props.onError) {
       this.props.onError(error, errorInfo);
     }
   }
+  
+  // Save error to AsyncStorage for later analysis
+  persistError(error: Error, errorInfo: React.ErrorInfo) {
+    try {
+      const errorData = {
+        message: error.message,
+        stack: error.stack,
+        componentStack: errorInfo.componentStack,
+        timestamp: new Date().toISOString(),
+      };
+      
+      AsyncStorage.getItem('@error_logs').then(existingLogs => {
+        const logs = existingLogs ? JSON.parse(existingLogs) : [];
+        logs.push(errorData);
+        // Keep only the last 10 errors
+        const trimmedLogs = logs.slice(-10);
+        AsyncStorage.setItem('@error_logs', JSON.stringify(trimmedLogs));
+      });
+    } catch (e) {
+      // Silently fail if we can't persist the error
+      console.error('Failed to persist error:', e);
+    }
+  }
+  
+  // Reset the error state to recover
+  resetError() {
+    this.setState({ 
+      hasError: false, 
+      error: null,
+      errorInfo: null
+    });
+  }
 
   render() {
     if (this.state.hasError) {
-      return (
-        <View style={styles.container}>
-          <View style={styles.content}>
-            <Text style={styles.title}>Something went wrong</Text>
-            <Text style={styles.subtitle}>
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </Text>
-            {Platform.OS !== 'web' && (
-              <Text style={styles.description}>
-                Please check your device logs for more details.
-              </Text>
-            )}
-          </View>
-        </View>
-      );
+      // Use custom fallback if provided
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
+      
+      // Use default error fallback
+      return <ErrorFallback error={this.state.error} resetError={this.resetError} />;
     }
 
     return this.props.children;
@@ -136,23 +236,69 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 20,
   },
+  icon: {
+    marginBottom: 16,
+  },
   title: {
-    fontSize: 36,
+    fontSize: 24,
     textAlign: 'center',
     fontWeight: 'bold',
     marginBottom: 8,
+    color: '#333',
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 16,
     color: '#666',
-    marginBottom: 12,
+    marginBottom: 24,
     textAlign: 'center',
+    maxWidth: '80%',
   },
-  description: {
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 16,
+    gap: 12,
+  },
+  button: {
+    backgroundColor: '#7B5CFF',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 120,
+    gap: 8,
+  },
+  homeButton: {
+    backgroundColor: '#5E45CC',
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  detailsToggle: {
+    marginTop: 16,
+    padding: 8,
+  },
+  detailsToggleText: {
+    color: '#7B5CFF',
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-    marginTop: 8,
+    fontWeight: '500',
   },
-}); 
+  detailsContainer: {
+    maxHeight: 200,
+    width: '100%',
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+  },
+  detailsText: {
+    fontSize: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    color: '#333',
+  },
+});
 

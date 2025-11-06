@@ -1,7 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   View, 
-  Text, 
   StyleSheet, 
   SafeAreaView, 
   TextInput, 
@@ -13,36 +12,56 @@ import { Search, Shuffle, X } from 'lucide-react-native';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
-import { useCampusStore } from '@/store/campus-store';
+import { useOrganizations } from '@/hooks/useApiData';
 import OrganizationCard from '@/components/OrganizationCard';
 import { Organization } from '@/types/campus';
 import BackToTopButton from '@/components/BackToTopButton';
+import { useTheme } from '@/contexts/theme-context';
+import ThemedText from '@/components/ThemedText';
 
-export default function ExploreScreen() {
-  const { organizations } = useCampusStore();
+export default React.memo(function ExploreScreen() {
+  // Use API hook to fetch organizations data
+  const { data: orgsData, loading: orgsLoading, error: orgsError } = useOrganizations();
+  const organizations = orgsData?.organizations || [];
   const [searchQuery, setSearchQuery] = useState('');
   const [resources, setResources] = useState<Organization[]>(organizations);
-  const scrollY = new Animated.Value(0);
+  // Use useRef for values that shouldn't trigger re-renders
+  const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
   const router = useRouter();
+  const { theme, isDarkMode } = useTheme();
   
-  // Handle search
-  const handleSearch = (text: string) => {
-    setSearchQuery(text);
-    
-    if (text.trim() === '') {
-      setResources(organizations);
-      return;
+  // Debug: Log API status
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('🔍 Explore Screen API Status:', {
+        loading: orgsLoading,
+        error: orgsError,
+        count: organizations.length,
+        resourcesCount: resources.length,
+        searchQuery: searchQuery || 'none'
+      });
     }
-    
-    const filtered = organizations.filter(org => 
-      org.name.toLowerCase().includes(text.toLowerCase()) ||
-      org.description.toLowerCase().includes(text.toLowerCase()) ||
-      org.type.toLowerCase().includes(text.toLowerCase())
-    );
-    
-    setResources(filtered);
-  };
+  }, [orgsLoading, orgsError, organizations.length, resources.length, searchQuery]);
+  
+  // Update resources when organizations data or search query changes
+  useEffect(() => {
+    if (searchQuery.trim() === '') {
+      setResources(organizations);
+    } else {
+      const filtered = organizations.filter(org => 
+        org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        org.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        org.type.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setResources(filtered);
+    }
+  }, [organizations, searchQuery]);
+  
+  // Memoize the search function - just update query, useEffect handles filtering
+  const handleSearch = React.useCallback((text: string) => {
+    setSearchQuery(text);
+  }, []);
   
   // Clear search
   const clearSearch = () => {
@@ -77,58 +96,77 @@ export default function ExploreScreen() {
   );
   
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomStatusBar style="dark" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
       
       <View style={styles.header}>
-        <Text style={styles.title}>Explore</Text>
-        <Text style={styles.subtitle}>
+        <ThemedText variant="h1" weight="bold" style={styles.title}>
+          Explore
+        </ThemedText>
+        <ThemedText variant="body" color="secondary" style={styles.subtitle}>
           Discover resources and opportunities across campus
-        </Text>
+        </ThemedText>
       </View>
       
       <View style={styles.searchContainer}>
-        <View style={styles.searchInputContainer}>
-          <Search size={20} color={Colors.textSecondary} style={styles.searchIcon} />
+        <View style={[
+          styles.searchInputContainer, 
+          { 
+            backgroundColor: theme.inputBackground, 
+            borderColor: theme.border 
+          }
+        ]}>
+          <Search size={20} color={theme.textSecondary} style={styles.searchIcon} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: theme.text }]}
             placeholder="Search resources..."
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholderTextColor={Colors.textSecondary}
+            placeholderTextColor={theme.textMuted}
           />
           {searchQuery.length > 0 && (
             <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-              <X size={18} color={Colors.textSecondary} />
+              <X size={18} color={theme.textSecondary} strokeWidth={isDarkMode ? 2.5 : 2} />
             </TouchableOpacity>
           )}
         </View>
         
         <TouchableOpacity 
-          style={styles.randomizeButton}
+          style={[styles.randomizeButton, { backgroundColor: theme.primary }]}
           onPress={randomizeResources}
         >
-          <Shuffle size={20} color={Colors.white} />
+          <Shuffle size={20} color={theme.white} strokeWidth={isDarkMode ? 2.5 : 2} />
         </TouchableOpacity>
       </View>
       
       <View style={styles.resultsContainer}>
         <View style={styles.resultsHeader}>
-          <Text style={styles.resultsCount}>
-            {resources.length} {resources.length === 1 ? 'result' : 'results'}
-          </Text>
-          {resources.length > 0 && (
-            <Text style={styles.randomizeHint}>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.resultsCount}>
+            {orgsLoading ? 'Loading...' : `${resources.length} ${resources.length === 1 ? 'result' : 'results'}`}
+          </ThemedText>
+          {orgsError && (
+            <ThemedText variant="bodySmall" color="error" style={styles.errorText}>
+              Using mock data
+            </ThemedText>
+          )}
+          {resources.length > 0 && !orgsLoading && (
+            <ThemedText variant="bodySmall" color="secondary" style={styles.randomizeHint}>
               Tap shuffle to randomize
-            </Text>
+            </ThemedText>
           )}
         </View>
         
-        {resources.length > 0 ? (
+        {orgsLoading ? (
+          <View style={styles.loadingContainer}>
+            <ThemedText variant="body" color="secondary">
+              Loading organizations...
+            </ThemedText>
+          </View>
+        ) : resources.length > 0 ? (
           <Animated.FlatList
             ref={flatListRef}
             data={resources}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
             renderItem={renderItem}
             numColumns={2}
             contentContainerStyle={styles.gridContainer}
@@ -141,14 +179,16 @@ export default function ExploreScreen() {
           />
         ) : (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>
+            <ThemedText variant="body" color="secondary" style={styles.emptyStateText}>
               No resources found matching "{searchQuery}"
-            </Text>
+            </ThemedText>
             <TouchableOpacity 
-              style={styles.emptyStateButton}
+              style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
               onPress={clearSearch}
             >
-              <Text style={styles.emptyStateButtonText}>Clear Search</Text>
+              <ThemedText variant="button" color="inverted" style={styles.emptyStateButtonText}>
+                Clear Search
+              </ThemedText>
             </TouchableOpacity>
           </View>
         )}
@@ -160,12 +200,11 @@ export default function ExploreScreen() {
       />
     </SafeAreaView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     paddingHorizontal: 20,
@@ -174,13 +213,10 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 16,
-    color: Colors.textSecondary,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -192,12 +228,10 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.white,
     borderRadius: 12,
     paddingHorizontal: 12,
     height: 48,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   searchIcon: {
     marginRight: 8,
@@ -206,7 +240,6 @@ const styles = StyleSheet.create({
     flex: 1,
     height: '100%',
     fontSize: 16,
-    color: Colors.text,
   },
   clearButton: {
     padding: 4,
@@ -214,7 +247,6 @@ const styles = StyleSheet.create({
   randomizeButton: {
     width: 48,
     height: 48,
-    backgroundColor: Colors.primary,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -231,12 +263,9 @@ const styles = StyleSheet.create({
   },
   resultsCount: {
     fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
   },
   randomizeHint: {
     fontSize: 14,
-    color: Colors.textSecondary,
   },
   gridContainer: {
     paddingBottom: 20,
@@ -256,18 +285,25 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     fontSize: 16,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: 16,
   },
   emptyStateButton: {
-    backgroundColor: Colors.primary,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 100,
   },
   emptyStateButtonText: {
-    color: Colors.white,
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  errorText: {
+    fontSize: 12,
+    marginLeft: 8,
   },
 });

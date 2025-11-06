@@ -1,14 +1,17 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCalendarStore } from '@/store/calendar-store';
 import Colors from '@/constants/colors';
 import { X, Check } from 'lucide-react-native';
+import { useTheme } from '@/contexts/theme-context';
+import ThemedText from '@/components/ThemedText';
 
 export default function AddEventModal() {
   const addEvent = useCalendarStore((state) => state.addEvent);
   const isLoading = useCalendarStore((state) => state.isLoading);
+  const { theme, isDarkMode } = useTheme();
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
@@ -78,49 +81,75 @@ export default function AddEventModal() {
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>New Event</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <ThemedText variant="h3" weight="semibold" style={styles.headerTitle}>
+          New Event
+        </ThemedText>
         <TouchableOpacity onPress={() => router.back()} style={styles.closeButton}>
-          <X size={24} color={Colors.text} />
+          <X size={24} color={theme.text} strokeWidth={isDarkMode ? 2.5 : 2} />
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.form}>
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Title</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Title
+          </ThemedText>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: theme.inputBackground, 
+                borderColor: theme.border,
+                color: theme.text
+              }
+            ]}
             value={title}
             onChangeText={setTitle}
             placeholder="Event title"
+            placeholderTextColor={theme.textMuted}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Date
+          </ThemedText>
           {Platform.OS === 'web' ? (
             <input
               type="date"
-              style={webStyles.dateInput}
+              style={{
+                ...webStyles.dateInput,
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.border,
+                color: theme.text
+              }}
               value={date.toISOString().split('T')[0]}
               onChange={(e) => setDate(new Date(e.target.value))}
             />
           ) : (
             <>
               <TouchableOpacity 
-                style={styles.dateButton}
+                style={[
+                  styles.dateButton,
+                  { 
+                    backgroundColor: theme.inputBackground, 
+                    borderColor: theme.border 
+                  }
+                ]}
                 onPress={() => setShowDatePicker(true)}
               >
-                <Text style={styles.dateButtonText}>
+                <ThemedText style={styles.dateButtonText}>
                   {date.toLocaleDateString()}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
               {showDatePicker && (
                 <DateTimePicker
                   value={date}
                   mode="date"
                   onChange={handleDateChange}
+                  themeVariant={isDarkMode ? 'dark' : 'light'}
                 />
               )}
             </>
@@ -128,11 +157,18 @@ export default function AddEventModal() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Time</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Time
+          </ThemedText>
           {Platform.OS === 'web' ? (
             <input
               type="time"
-              style={webStyles.dateInput}
+              style={{
+                ...webStyles.dateInput,
+                backgroundColor: theme.inputBackground,
+                borderColor: theme.border,
+                color: theme.text
+              }}
               value={`${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`}
               onChange={(e) => {
                 const [hours, minutes] = e.target.value.split(':');
@@ -145,22 +181,29 @@ export default function AddEventModal() {
           ) : (
             <>
               <TouchableOpacity 
-                style={styles.dateButton}
+                style={[
+                  styles.dateButton,
+                  { 
+                    backgroundColor: theme.inputBackground, 
+                    borderColor: theme.border 
+                  }
+                ]}
                 onPress={() => setShowTimePicker(true)}
               >
-                <Text style={styles.dateButtonText}>
+                <ThemedText style={styles.dateButtonText}>
                   {date.toLocaleTimeString('en-US', { 
                     hour: 'numeric',
                     minute: '2-digit',
                     hour12: true 
                   })}
-                </Text>
+                </ThemedText>
               </TouchableOpacity>
               {showTimePicker && (
                 <DateTimePicker
                   value={date}
                   mode="time"
                   onChange={handleTimeChange}
+                  themeVariant={isDarkMode ? 'dark' : 'light'}
                 />
               )}
             </>
@@ -168,66 +211,109 @@ export default function AddEventModal() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Duration (minutes)</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Duration (minutes)
+          </ThemedText>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: theme.inputBackground, 
+                borderColor: theme.border,
+                color: theme.text
+              }
+            ]}
             value={duration}
             onChangeText={setDuration}
             keyboardType="numeric"
             placeholder="60"
+            placeholderTextColor={theme.textMuted}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Location</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Location
+          </ThemedText>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: theme.inputBackground, 
+                borderColor: theme.border,
+                color: theme.text
+              }
+            ]}
             value={location}
             onChangeText={setLocation}
             placeholder="Event location"
+            placeholderTextColor={theme.textMuted}
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Description (optional)</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Description (optional)
+          </ThemedText>
           <TextInput
-            style={[styles.input, styles.textArea]}
+            style={[
+              styles.input, 
+              styles.textArea,
+              { 
+                backgroundColor: theme.inputBackground, 
+                borderColor: theme.border,
+                color: theme.text
+              }
+            ]}
             value={description}
             onChangeText={setDescription}
             placeholder="Add description"
+            placeholderTextColor={theme.textMuted}
             multiline
             numberOfLines={4}
           />
         </View>
         
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Image URL (optional)</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Image URL (optional)
+          </ThemedText>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input, 
+              { 
+                backgroundColor: theme.inputBackground, 
+                borderColor: theme.border,
+                color: theme.text
+              }
+            ]}
             value={imageUrl}
             onChangeText={setImageUrl}
             placeholder="https://example.com/image.jpg"
+            placeholderTextColor={theme.textMuted}
             autoCapitalize="none"
             keyboardType="url"
           />
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Event Color (optional)</Text>
+          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
+            Event Color (optional)
+          </ThemedText>
           <View style={styles.colorPicker}>
             {eventColors.map((eventColor, index) => (
               <TouchableOpacity
                 key={index}
                 style={[
                   styles.colorOption,
-                  eventColor ? { backgroundColor: eventColor } : styles.noColorOption,
-                  color === eventColor && styles.selectedColorOption
+                  eventColor ? { backgroundColor: eventColor } : [styles.noColorOption, { backgroundColor: theme.cardBackground, borderColor: theme.border }],
+                  color === eventColor && [styles.selectedColorOption, { borderColor: theme.white }]
                 ]}
                 onPress={() => setColor(eventColor)}
               >
                 {color === eventColor && (
                   <View style={styles.colorCheckmark}>
-                    <Check size={12} color="#FFF" />
+                    <Check size={12} color="#FFF" strokeWidth={isDarkMode ? 2.5 : 2} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -236,15 +322,19 @@ export default function AddEventModal() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: theme.border }]}>
         <TouchableOpacity 
-          style={[styles.submitButton, isLoading && styles.disabledButton]}
+          style={[
+            styles.submitButton, 
+            { backgroundColor: theme.primary },
+            isLoading && [styles.disabledButton, { backgroundColor: theme.primary + '80' }]
+          ]}
           onPress={handleSubmit}
           disabled={isLoading}
         >
-          <Text style={styles.submitButtonText}>
+          <ThemedText variant="button" color="inverted" style={styles.submitButtonText}>
             {isLoading ? 'Creating...' : 'Create Event'}
-          </Text>
+          </ThemedText>
         </TouchableOpacity>
       </View>
     </View>
@@ -254,7 +344,6 @@ export default function AddEventModal() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -262,12 +351,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: Colors.text,
   },
   closeButton: {
     padding: 4,
@@ -281,18 +367,13 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 14,
-    fontWeight: '500',
-    color: Colors.text,
     marginBottom: 8,
   },
   input: {
-    backgroundColor: Colors.white,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
     fontSize: 16,
-    color: Colors.text,
   },
   textArea: {
     height: 100,
@@ -312,14 +393,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   noColorOption: {
-    backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   selectedColorOption: {
     borderWidth: 2,
-    borderColor: Colors.white,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
@@ -334,46 +411,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   dateButton: {
-    backgroundColor: Colors.white,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   dateButtonText: {
     fontSize: 16,
-    color: Colors.text,
   },
   footer: {
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   submitButton: {
-    backgroundColor: Colors.primary,
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
   },
   submitButtonText: {
-    color: Colors.white,
     fontSize: 16,
-    fontWeight: '600',
   },
   disabledButton: {
-    backgroundColor: Colors.primary + '80', // Adding transparency
     opacity: 0.8,
   },
 });
 
+// Web styles are applied dynamically with theme colors in the component
 const webStyles = {
   dateInput: {
-    backgroundColor: Colors.white,
     borderRadius: 8,
     padding: 12,
-    border: `1px solid ${Colors.border}`,
     fontSize: 16,
-    color: Colors.text,
     width: '100%',
     outline: 'none',
   },

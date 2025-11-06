@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, memo, useMemo, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
 import { ArrowUp } from 'lucide-react-native';
-import Colors from '@/constants/colors';
+import { useTheme } from '@/contexts/theme-context';
+import { createFadeAnimation, createSpringAnimation } from '@/utils/animation';
 
 interface BackToTopButtonProps {
   scrollY: Animated.Value;
@@ -9,70 +10,96 @@ interface BackToTopButtonProps {
   threshold?: number;
 }
 
+// Pre-define animation configurations
+const FADE_IN_CONFIG = {
+  toValue: 1,
+  duration: 200,
+  useNativeDriver: true,
+};
+
+const FADE_OUT_CONFIG = {
+  toValue: 0,
+  duration: 200,
+  useNativeDriver: true,
+};
+
+const SCALE_CONFIG = {
+  toValue: 1,
+  friction: 7,
+  tension: 40,
+  useNativeDriver: true,
+};
+
 const BackToTopButton = ({ 
   scrollY, 
   onPress, 
   threshold = 200 
 }: BackToTopButtonProps) => {
   const [isVisible, setIsVisible] = useState(false);
+  const { theme, isDarkMode } = useTheme();
   
-  // Animation values
-  const opacity = new Animated.Value(0);
-  const scale = new Animated.Value(0.8);
+  // Animation values - use refs to persist between renders
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.8)).current;
+  
+  // Memoize the scroll handler to prevent unnecessary re-renders
+  const handleScroll = useCallback(({ value }: { value: number }) => {
+    if (value > threshold && !isVisible) {
+      setIsVisible(true);
+      Animated.parallel([
+        createFadeAnimation(opacity, 1, { duration: 200 }),
+        createSpringAnimation(scale, 1, { friction: 7, tension: 40 })
+      ]).start();
+    } else if (value <= threshold && isVisible) {
+      setIsVisible(false);
+      createFadeAnimation(opacity, 0, { duration: 200 }).start();
+    }
+  }, [threshold, isVisible, opacity, scale]);
   
   useEffect(() => {
-    const listenerId = scrollY.addListener(({ value }) => {
-      if (value > threshold && !isVisible) {
-        setIsVisible(true);
-        Animated.parallel([
-          Animated.timing(opacity, {
-            toValue: 1,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.spring(scale, {
-            toValue: 1,
-            friction: 7,
-            tension: 40,
-            useNativeDriver: true,
-          })
-        ]).start();
-      } else if (value <= threshold && isVisible) {
-        setIsVisible(false);
-        Animated.timing(opacity, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }).start();
-      }
-    });
+    const listenerId = scrollY.addListener(handleScroll);
     
     return () => {
       scrollY.removeListener(listenerId);
     };
-  }, [scrollY, threshold, isVisible]);
+  }, [scrollY, handleScroll]);
   
+  // Early return for web to improve performance
   if (Platform.OS === 'web' && !isVisible) {
     return null;
   }
   
+  // Memoize styles to prevent unnecessary style object creation
+  const containerStyle = useMemo(() => ({
+    ...styles.container,
+    opacity,
+    transform: [{ scale }],
+    // Type-safe display property
+    display: (Platform.OS !== 'web' || isVisible ? 'flex' : 'none') as 'flex' | 'none'
+  }), [opacity, scale, isVisible]);
+  
+  const buttonStyle = useMemo(() => ([
+    styles.button,
+    { 
+      backgroundColor: theme.primary,
+      shadowColor: isDarkMode ? theme.primary : '#000',
+      shadowOpacity: isDarkMode ? 0.4 : 0.2,
+      elevation: isDarkMode ? 8 : 5,
+    }
+  ]), [theme.primary, isDarkMode]);
+  
   return (
-    <Animated.View 
-      style={[
-        styles.container,
-        {
-          opacity,
-          transform: [{ scale }],
-          display: Platform.OS !== 'web' || isVisible ? 'flex' : 'none'
-        }
-      ]}
-    >
+    <Animated.View style={containerStyle}>
       <TouchableOpacity
-        style={styles.button}
+        style={buttonStyle}
         onPress={onPress}
         activeOpacity={0.8}
       >
-        <ArrowUp size={20} color={Colors.white} />
+        <ArrowUp 
+          size={20} 
+          color={theme.white || '#FFFFFF'} 
+          strokeWidth={isDarkMode ? 2.5 : 2}
+        />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -89,15 +116,12 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
     shadowRadius: 3,
-    elevation: 5,
   },
 });
 
-export default BackToTopButton;
+// Memoize the component to prevent unnecessary re-renders
+export default memo(BackToTopButton);

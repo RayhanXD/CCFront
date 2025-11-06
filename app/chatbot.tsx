@@ -415,8 +415,7 @@ export default function ChatbotScreen() {
           fontSize: 12,
           color: theme.textSecondary,
           marginBottom: 2,
-          marginLeft: isUserMessage ? 0 : 8,
-          marginRight: isUserMessage ? 8 : 0,
+          marginLeft: 12,
         }}>
           {isUserMessage ? 'You' : 'AI Assistant'}
         </Text>
@@ -426,8 +425,8 @@ export default function ChatbotScreen() {
           style={[
             styles.messageBubble,
             isUserMessage
-              ? styles.userBubble
-              : styles.botBubble
+              ? [styles.userBubble, { backgroundColor: theme.primary }]
+              : [styles.botBubble, { backgroundColor: theme.cardBackground }]
           ]}
           onLongPress={() => handleMessageAction(item)}
           activeOpacity={0.8}
@@ -439,9 +438,10 @@ export default function ChatbotScreen() {
           )}
           {renderFormattedText(
             item.text,
-            [styles.messageText, isUserMessage
-              ? [styles.userText, { color: '#FFFFFF' }]
-              : [styles.botText, { color: theme.text }]]
+            [styles.messageText, {
+              color: isUserMessage ? '#FFFFFF' : theme.text,
+              textAlign: 'left',
+            }]
           )}
         </TouchableOpacity>
       </View>
@@ -451,7 +451,7 @@ export default function ChatbotScreen() {
   return (
     <ChatbotWrapper>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-        <CustomStatusBar />
+        <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
         
         {/* Header */}
         <View style={[styles.header, { backgroundColor: isDarkMode ? theme.cardBackground : theme.white, borderBottomColor: isDarkMode ? theme.border : theme.border }]}>
@@ -604,14 +604,11 @@ const styles = StyleSheet.create({
   userBubble: {
     alignSelf: 'flex-end',
     borderBottomRightRadius: 4,
-    backgroundColor: '#1E88E5', // Blue color for user bubbles
   },
   botBubble: {
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
-    backgroundColor: '#F5F5F5', // Light gray for bot bubbles
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   messageIcon: {
     marginRight: 8,
@@ -620,12 +617,6 @@ const styles = StyleSheet.create({
   messageText: {
     fontSize: 16,
     flex: 1,
-  },
-  userText: {
-    color: '#FFFFFF',
-  },
-  botText: {
-    color: '#000000',
   },
   boldText: {
     fontWeight: 'bold',
@@ -650,6 +641,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     padding: 8,
     borderTopWidth: 1,
+    backgroundColor: theme.background,
+    borderTopColor: theme.border,
   },
   input: {
     flex: 1,
@@ -660,6 +653,9 @@ const styles = StyleSheet.create({
     paddingRight: 40,
     fontSize: 16,
     maxHeight: 120,
+    backgroundColor: theme.inputBackground,
+    color: theme.text,
+    borderColor: theme.border,
   },
   sendButton: {
     width: 40,
@@ -686,11 +682,5 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 8,
     fontSize: 16,
-  },
-  userMessageText: {
-    color: '#FFFFFF',
-  },
-  botMessageText: {
-    color: '#000000',
   },
 });

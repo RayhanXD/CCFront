@@ -2,17 +2,16 @@ import FontAwesome from "@expo/vector-icons/FontAwesome";
 import { useFonts } from "expo-font";
 import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { Platform, AppState, View } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { useUserStore } from "@/store/user-store";
-import { useEventsStore } from "@/store/events-store";
 import { useTheme } from "@/contexts/theme-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { DialogProvider } from "@/context/DialogContext";
-import { ToastProvider } from "@/context/ToastContext";
 import { ThemeProvider } from "@/contexts/theme-context";
 import { LanguageProvider } from "@/contexts/language-context";
+import { DialogProvider } from "@/contexts/dialog-context";
+import { ToastProvider } from "@/contexts/toast-context";
 import CustomStatusBar from "@/components/CustomStatusBar";
 
 export const unstable_settings = {
@@ -68,11 +67,10 @@ function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
   const { isOnboardingComplete, userProfile } = useUserStore();
-  const { checkAndUpdateEvents } = useEventsStore();
-  const { theme } = useTheme();
+  const { theme, isDarkMode } = useTheme();
 
-  // Authentication effect
-  useEffect(() => {
+  // Use a layout effect to handle auth redirects - this runs before regular effects
+  React.useLayoutEffect(() => {
     const inAuthGroup = segments[0] === "onboarding" || segments[0] === "auth";
     const isAuthenticated = userProfile && isOnboardingComplete;
 
@@ -85,63 +83,58 @@ function RootLayoutNav() {
     }
   }, [isOnboardingComplete, userProfile, segments]);
   
-  // Daily events update effect
-  useEffect(() => {
-    // Check for events update when app starts
-    if (userProfile) {
-      checkAndUpdateEvents();
-    }
-    
-    // Set up app state listener to check for updates when app comes to foreground
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (nextAppState === 'active' && userProfile) {
-        // App has come to the foreground
-        checkAndUpdateEvents();
-      }
-    });
-    
-    return () => {
-      subscription.remove();
-    };
-  }, [userProfile]);
+  // We're completely removing the data initialization logic from _layout.tsx
+  // Each component will be responsible for fetching its own data when needed
+  // This prevents infinite update loops caused by centralized data fetching
+  // The events store will auto-initialize itself when imported
 
-  // Apply theme to navigation container
+  // Apply theme to navigation container with enhanced dark mode support
   const getDefaultScreenOptions = () => ({
     headerShown: false,
     headerStyle: {
-      backgroundColor: theme?.white || '#FFFFFF',
+      backgroundColor: theme?.cardBackground || '#FFFFFF',
       borderBottomColor: theme?.border || '#E5E5E5',
       borderBottomWidth: 1,
+      elevation: isDarkMode ? 4 : 2,
+      shadowColor: theme?.shadow || '#000000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: isDarkMode ? 0.3 : 0.1,
+      shadowRadius: isDarkMode ? 3 : 2,
     },
     headerTintColor: theme?.text || '#1A1A1A',
     headerTitleStyle: {
       fontSize: 17,
-      fontWeight: '700' as '700',
+      fontWeight: '600' as '600',
       fontFamily: Platform.OS === "ios" ? "System" : "normal",
       color: theme?.text || '#1A1A1A',
     },
     headerBackTitleStyle: {
-      fontSize: 17,
+      fontSize: 16,
       fontFamily: Platform.OS === "ios" ? "System" : "normal",
+      color: theme?.textSecondary || '#666666',
     },
     contentStyle: {
       backgroundColor: theme?.background || '#F8F7FF',
     },
     animation: 'slide_from_right' as const,
-    // Add these properties for better dark mode support
-    statusBarStyle: (theme?.text === '#FFFFFF' ? 'light' : 'dark') as 'light' | 'dark',
-    statusBarColor: theme?.background || '#F8F7FF',
-    navigationBarColor: theme?.background || '#F8F7FF',
     // For modals
     presentation: 'card' as 'card',
     cardStyle: {
       backgroundColor: theme?.background || '#F8F7FF',
     },
+    // Enhanced dark mode support
+    cardOverlayEnabled: true,
+    cardShadowEnabled: true,
   });
+
+  // isDarkMode is already declared above
 
   return (
     <>
-      <CustomStatusBar />
+      <CustomStatusBar 
+        style={isDarkMode ? 'light' : 'dark'} 
+        backgroundColor={isDarkMode ? theme.background : 'transparent'}
+      />
       <Stack
       screenOptions={getDefaultScreenOptions()}
     >

@@ -4,33 +4,58 @@ import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Calendar, RefreshCw, CalendarDays } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useEventsStore } from '@/store/events-store';
-import { TodayEvent } from '@/types/events';
+import { useTodayEvents, useCalendarEvents } from '@/hooks/useApiData';
+import { CalendarEvent } from '@/types/calendar';
 import EventCard from '@/components/EventCard';
 
 export default function AllTodayEventsScreen() {
   const router = useRouter();
-  const { 
-    todayEvents, 
-    futureEvents,
-    isLoading, 
-    error,
-    fetchTodayEvents, 
-    fetchFutureEvents,
-    checkAndUpdateEvents 
-  } = useEventsStore();
+  
+  // Use API data hook to fetch today's events
+  const { data: eventsData, loading: isLoading, error, refetch } = useTodayEvents();
+  
+  // Fetch future events (next 30 days)
+  const today = new Date();
+  const futureDate = new Date();
+  futureDate.setDate(today.getDate() + 30);
+  
+  const { data: futureEventsData, loading: futureLoading } = useCalendarEvents({
+    start_date: today.toISOString().split('T')[0],
+    end_date: futureDate.toISOString().split('T')[0],
+  });
+  
   const [refreshing, setRefreshing] = useState(false);
-  const [sortedEvents, setSortedEvents] = useState<any[]>([]);
-  const [sortedFutureEvents, setSortedFutureEvents] = useState<any[]>([]);
+  const [sortedEvents, setSortedEvents] = useState<CalendarEvent[]>([]);
+  const [sortedFutureEvents, setSortedFutureEvents] = useState<CalendarEvent[]>([]);
   const [showingFutureEvents, setShowingFutureEvents] = useState(false);
   
   // Helper function to check if a date is today
   const isToday = (dateString: string): boolean => {
-    const date = new Date(dateString);
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
+    if (!dateString) return false;
+    try {
+      // Handle ISO date strings (YYYY-MM-DD or full ISO)
+      const dateStr = dateString.split('T')[0]; // Get just the date part
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      return dateStr === todayStr;
+    } catch (error) {
+      console.error('Error checking if date is today:', error);
+      return false;
+    }
+  };
+  
+  // Helper function to check if a date is in the future
+  const isFuture = (dateString: string): boolean => {
+    if (!dateString) return false;
+    try {
+      const dateStr = dateString.split('T')[0];
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      return dateStr > todayStr;
+    } catch (error) {
+      console.error('Error checking if date is future:', error);
+      return false;
+    }
   };
   
   // Helper function to parse time string to Date object
@@ -87,65 +112,74 @@ export default function AllTodayEventsScreen() {
     });
   };
   
-  // Filter and sort events whenever todayEvents or futureEvents change
+  // Process and sort events when data changes
   useEffect(() => {
-    // Debug logs
-    console.log('Today Events:', todayEvents?.length || 0);
-    console.log('Future Events:', futureEvents?.length || 0);
-    
-    // Process today's events
-    if (todayEvents && todayEvents.length > 0) {
+    // Process today's events from API
+    const todayEvents = eventsData?.events || [];
+    if (todayEvents.length > 0) {
+      // API already returns today's events, but double-check and sort by time
       const filtered = filterAndSortEvents(todayEvents);
       setSortedEvents(filtered);
       setShowingFutureEvents(false);
-      console.log('Showing today events, count:', filtered.length);
     } else {
       setSortedEvents([]);
       setShowingFutureEvents(true);
-      console.log('No today events, should show future events');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventsData?.events]);
+  
+  // Process future events
+  useEffect(() => {
+    const allFutureEvents = futureEventsData?.events || [];
     
-    // Process future events
-    if (futureEvents && futureEvents.length > 0) {
-      // Sort future events by date (closest first)
-      const sorted = [...futureEvents].sort((a, b) => {
-        const dateA = new Date(a.date);
-        const dateB = new Date(b.date);
-        return dateA.getTime() - dateB.getTime();
-      });
-      setSortedFutureEvents(sorted);
-      console.log('Future events sorted, count:', sorted.length);
+    if (allFutureEvents.length > 0) {
+      // Filter to only future events (not today) and sort by date
+      const todayStr = new Date().toISOString().split('T')[0];
+      const futureOnly = allFutureEvents
+        .filter(event => {
+          if (!event.date) return false;
+          const eventDateStr = event.date.split('T')[0];
+          return eventDateStr > todayStr;
+        })
+        .sort((a, b) => {
+          const dateA = new Date(a.date);
+          const dateB = new Date(b.date);
+          return dateA.getTime() - dateB.getTime();
+        });
+      
+      setSortedFutureEvents(futureOnly);
     } else {
       setSortedFutureEvents([]);
-      console.log('No future events available');
     }
-  }, [todayEvents, futureEvents]);
-  
-  useEffect(() => {
-    // Check if we need to update today's events when the screen loads
-    console.log('Initial load - fetching events');
-    checkAndUpdateEvents();
-    
-    // Explicitly fetch future events to ensure they're loaded
-    fetchFutureEvents();
-  }, []);
-  
-  // Debug the current state
-  useEffect(() => {
-    console.log('Current state:', {
-      todayEventsCount: sortedEvents.length,
-      futureEventsCount: sortedFutureEvents.length,
-      showingFuture: showingFutureEvents
-    });
-  }, [sortedEvents, sortedFutureEvents, showingFutureEvents]);
+  }, [futureEventsData?.events]);
   
   // Handle pull-to-refresh
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchTodayEvents();
-    await fetchFutureEvents();
-    setRefreshing(false);
+    try {
+      await Promise.all([
+        refetch(),
+        // Refresh future events too if needed
+      ]);
+    } catch (error) {
+      console.error('Error refreshing events:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
+  
+  // Debug: Log data status
+  useEffect(() => {
+    if (__DEV__) {
+      console.log('📅 Today Events Status:', {
+        loading: isLoading,
+        error: !!error,
+        todayCount: sortedEvents.length,
+        futureCount: sortedFutureEvents.length,
+        showingFuture: showingFutureEvents
+      });
+    }
+  }, [isLoading, error, sortedEvents.length, sortedFutureEvents.length, showingFutureEvents]);
   
   return (
     <SafeAreaView style={styles.container}>
@@ -166,7 +200,7 @@ export default function AllTodayEventsScreen() {
         <View style={styles.placeholder} />
       </View>
       
-      {isLoading ? (
+      {(isLoading || futureLoading) ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
           <Text style={styles.loadingText}>Loading events...</Text>
@@ -176,7 +210,7 @@ export default function AllTodayEventsScreen() {
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
-            onPress={fetchTodayEvents}
+            onPress={refetch}
           >
             <RefreshCw size={16} color={Colors.white} />
             <Text style={styles.retryButtonText}>Retry</Text>
@@ -185,15 +219,17 @@ export default function AllTodayEventsScreen() {
       ) : sortedEvents.length === 0 && sortedFutureEvents.length === 0 ? (
         <View style={styles.noEventsContainer}>
           <Calendar size={48} color={Colors.textSecondary} />
-          <Text style={styles.noEventsText}>No events scheduled for today or in the future</Text>
+          <Text style={styles.noEventsText}>
+            {showingFutureEvents && sortedFutureEvents.length === 0
+              ? 'No events scheduled for today or in the near future'
+              : 'No events scheduled for today'}
+          </Text>
           <TouchableOpacity 
-            style={styles.debugButton}
-            onPress={() => {
-              console.log('Debug button pressed');
-              fetchFutureEvents();
-            }}
+            style={styles.retryButton}
+            onPress={onRefresh}
           >
-            <Text style={styles.debugButtonText}>Debug: Load Future Events</Text>
+            <RefreshCw size={16} color={Colors.white} />
+            <Text style={styles.retryButtonText}>Refresh</Text>
           </TouchableOpacity>
         </View>
       ) : (sortedEvents.length === 0 && sortedFutureEvents.length > 0) ? (
@@ -217,8 +253,8 @@ export default function AllTodayEventsScreen() {
           <Text style={styles.noTodayEventsText}>No events scheduled for today. Here are upcoming events:</Text>
           
           <View style={styles.gridContainer}>
-            {sortedFutureEvents.map(event => (
-              <View key={event.id} style={styles.eventCardContainer}>
+            {sortedFutureEvents.map((event, index) => (
+              <View key={event.id || `future-event-${index}`} style={styles.eventCardContainer}>
                 <EventCard 
                   event={event} 
                   variant="vertical" 
@@ -244,8 +280,8 @@ export default function AllTodayEventsScreen() {
           }
         >
           <View style={styles.gridContainer}>
-            {sortedEvents.map(event => (
-              <View key={event.id} style={styles.eventCardContainer}>
+            {sortedEvents.map((event, index) => (
+              <View key={event.id || `today-event-${index}`} style={styles.eventCardContainer}>
                 <EventCard 
                   event={event} 
                   variant="vertical" 

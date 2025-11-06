@@ -1,117 +1,79 @@
-import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { Award, GraduationCap, Briefcase, Globe, CircleCheck } from 'lucide-react-native';
-import Colors from '@/constants/colors';
+import React, { memo } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useScholarshipStore } from '@/store/scholarship-store';
+import { useTheme } from '@/contexts/theme-context';
+import ThemedText from './ThemedText';
 
-const { width } = Dimensions.get('window');
-const isSmallScreen = width < 375;
+const filters = [
+  { id: 'all', label: 'All' },
+  { id: 'merit', label: 'Merit-Based' },
+  { id: 'need', label: 'Need-Based' },
+  { id: 'research', label: 'Research' },
+  { id: 'international', label: 'International' },
+];
 
-type FilterType = 'all' | 'merit' | 'need' | 'research' | 'international';
-
-const ScholarshipFilterTabs = () => {
+// Use React.memo to prevent unnecessary re-renders
+const ScholarshipFilterTabs = memo(function ScholarshipFilterTabs() {
   const { selectedFilter, setSelectedFilter } = useScholarshipStore();
-  
-  // Define the tabs with their icons and labels
-  const tabs = [
-    { 
-      id: 'all' as FilterType, 
-      label: 'All',
-      icon: <CircleCheck size={isSmallScreen ? 14 : 16} color={selectedFilter === 'all' ? Colors.white : Colors.primary} />
-    },
-    { 
-      id: 'merit' as FilterType, 
-      label: 'Merit',
-      icon: <Award size={isSmallScreen ? 14 : 16} color={selectedFilter === 'merit' ? Colors.white : Colors.primary} />
-    },
-    { 
-      id: 'need' as FilterType, 
-      label: 'Need',
-      icon: <GraduationCap size={isSmallScreen ? 14 : 16} color={selectedFilter === 'need' ? Colors.white : Colors.primary} />
-    },
-    { 
-      id: 'research' as FilterType, 
-      label: 'Research',
-      icon: <Briefcase size={isSmallScreen ? 14 : 16} color={selectedFilter === 'research' ? Colors.white : Colors.primary} />
-    },
-    { 
-      id: 'international' as FilterType, 
-      label: 'International',
-      icon: <Globe size={isSmallScreen ? 14 : 16} color={selectedFilter === 'international' ? Colors.white : Colors.primary} />
-    },
-  ];
-
-  // Handle tab press - this will update both selectedFilter and filteredScholarships in the store
-  const handleTabPress = (tabId: FilterType) => {
-    setSelectedFilter(tabId);
-  };
+  const { theme, isDarkMode } = useTheme();
 
   return (
-    <View style={styles.wrapper}>
+    <View style={styles.container}>
       <ScrollView 
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.container}
+        horizontal 
+        showsHorizontalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
       >
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={[
-              styles.tab,
-              selectedFilter === tab.id && styles.activeTab
-            ]}
-            onPress={() => handleTabPress(tab.id as any)}
-            activeOpacity={0.7}
-          >
-            {tab.icon}
-            <Text 
+        {filters.map((filter) => {
+          const isActive = selectedFilter === filter.id;
+          return (
+            <TouchableOpacity
+              key={filter.id}
               style={[
-                styles.tabText,
-                selectedFilter === tab.id && styles.activeTabText,
-                isSmallScreen && styles.smallText
+                styles.filterTab,
+                { 
+                  backgroundColor: isActive 
+                    ? theme.primary 
+                    : isDarkMode ? theme.cardBackground : theme.white,
+                  borderColor: isActive ? theme.primary : theme.border,
+                }
               ]}
-              numberOfLines={1}
+              onPress={() => {
+                // Only update if the filter has changed
+                if (selectedFilter !== filter.id) {
+                  setSelectedFilter(filter.id as any);
+                }
+              }}
             >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <ThemedText 
+                variant="bodySmall" 
+                weight={isActive ? 'semibold' : 'medium'}
+                color={isActive ? 'inverted' : 'secondary'}
+              >
+                {filter.label}
+              </ThemedText>
+            </TouchableOpacity>
+          );
+        })}
       </ScrollView>
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
-  wrapper: {
-    paddingVertical: 4,
-  },
   container: {
     paddingHorizontal: 20,
-    flexDirection: 'row',
-    gap: 10,
   },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  scrollContent: {
     paddingVertical: 8,
-    paddingHorizontal: 14,
+    gap: 8,
+  },
+  filterTab: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 100,
-    backgroundColor: Colors.primaryLight,
-    gap: 6,
-  },
-  activeTab: {
-    backgroundColor: Colors.primary,
-  },
-  tabText: {
-    color: Colors.primary,
-    fontWeight: '500',
-    fontSize: 13,
-  },
-  smallText: {
-    fontSize: 12,
-  },
-  activeTabText: {
-    color: Colors.white,
+    borderWidth: 1,
+    marginRight: 8,
   },
 });
 

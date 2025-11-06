@@ -3,7 +3,7 @@ import { TouchableOpacity, StyleSheet, View } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useSavedItemsStore } from '@/store/saved-items-store';
-import { useToast } from '@/context/ToastContext';
+import { useToast } from '@/contexts/toast-context';
 
 interface SaveButtonProps {
   itemId: string;

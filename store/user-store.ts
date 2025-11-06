@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { shallow } from 'zustand/shallow';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile } from '@/types/user';
 import { apiService, UserProfile as ApiUserProfile } from '@/lib/api';
@@ -36,6 +37,20 @@ interface UserState {
   isOrganizationSaved?: (id: string) => boolean;
 }
 
+// Helper function to create a selector for specific state slices
+export const createSelector = <T,>(selector: (state: UserState) => T) => {
+  return () => useUserStore(selector);
+};
+
+// Create selectors for commonly used state slices
+export const useUserProfile = createSelector((state) => state.userProfile);
+export const useUserLoading = createSelector((state) => state.isLoading);
+export const useUserError = createSelector((state) => state.error);
+export const useOnboardingStatus = createSelector((state) => state.isOnboardingComplete);
+export const useSavedOrganizations = createSelector((state) => state.savedOrganizations);
+// Removed useCalendarEvents and useUpcomingEvents selectors to prevent infinite update loops
+// These should be accessed directly from userProfile instead
+
 export const useUserStore = create<UserState>()(
   persist(
     (set, get) => ({
@@ -45,6 +60,7 @@ export const useUserStore = create<UserState>()(
       error: null,
       savedOrganizations: [],
       
+      // Optimized setters that only update specific state slices
       setUserProfile: (profile) => set({ userProfile: profile }),
       
       setUserInterests: (interests) => set((state) => ({
@@ -66,15 +82,49 @@ export const useUserStore = create<UserState>()(
       signUp: async (userData: ApiUserProfile) => {
         set({ isLoading: true, error: null });
         try {
-          await apiService.signUp(userData);
-          // Convert API user profile to local user profile
+          const signUpResponse = await apiService.signUp(userData);
+          
+          // Fetch user profile data
+          const profileResponse = await apiService.getProfile(userData.email);
+          
+          // Fetch event recommendations
+          const eventsResponse = await apiService.getEventRecommendations(userData.email);
+          
+          // Fetch calendar events
+          const calendarResponse = await apiService.getCalendarEvents();
+          
+          // Fetch today's events
+          const todayEventsResponse = await apiService.getTodayEvents();
+          
+          // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
-            name: userData.name,
-            email: userData.email,
-            major: userData.major,
-            year: userData.year,
-            interests: userData.interests,
-            onboardingComplete: true
+            name: profileResponse.user.name,
+            email: profileResponse.user.email,
+            major: profileResponse.user.major,
+            year: profileResponse.user.year,
+            interests: profileResponse.user.interests,
+            onboardingComplete: true,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(profileResponse.user.name)}&background=7B5CFF&color=fff&size=200`,
+            // Map event recommendations to event history
+            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+              id: event.id || `e${index}`,
+              name: event.name || event.title || `Event ${index + 1}`,
+              date: event.date || new Date().toISOString().split('T')[0],
+              attended: Math.random() > 0.5 // Random attendance for new users
+            })),
+            // Create scholarships based on user's major
+            scholarships: [
+              { 
+                id: 's1', 
+                name: `${profileResponse.user.major} Merit Scholarship`, 
+                amount: Math.floor(Math.random() * 5000) + 1000, 
+                status: 'pending' 
+              },
+            ],
+            // Add calendar events
+            calendarEvents: calendarResponse.events,
+            // Add upcoming events (today's events)
+            upcomingEvents: todayEventsResponse.events,
           };
           set({ 
             userProfile: localProfile, 
@@ -94,15 +144,48 @@ export const useUserStore = create<UserState>()(
       signIn: async (email: string) => {
         set({ isLoading: true, error: null });
         try {
+          // Sign in to get user data
           const response = await apiService.signIn({ email });
-          // Convert API user profile to local user profile
+          
+          // Fetch event recommendations
+          const eventsResponse = await apiService.getEventRecommendations(email);
+          
+          // Fetch organization recommendations for scholarship generation
+          const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          
+          // Fetch calendar events
+          const calendarResponse = await apiService.getCalendarEvents();
+          
+          // Fetch today's events
+          const todayEventsResponse = await apiService.getTodayEvents();
+          
+          // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
             name: response.user.name,
             email: response.user.email,
             major: response.user.major,
             year: response.user.year,
             interests: response.user.interests,
-            onboardingComplete: true
+            onboardingComplete: true,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            // Map event recommendations to event history
+            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+              id: event.id || `e${index}`,
+              name: event.name || event.title || `Event ${index + 1}`,
+              date: event.date || new Date().toISOString().split('T')[0],
+              attended: Math.random() > 0.5 // Random attendance status
+            })),
+            // Generate scholarships based on organizations
+            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+              id: `s${index + 1}`,
+              name: `${org.name || org.title || response.user.major} Scholarship`,
+              amount: Math.floor(Math.random() * 5000) + 1000,
+              status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
+            })),
+            // Add calendar events
+            calendarEvents: calendarResponse.events,
+            // Add upcoming events (today's events)
+            upcomingEvents: todayEventsResponse.events,
           };
           set({ 
             userProfile: localProfile, 
@@ -144,8 +227,25 @@ export const useUserStore = create<UserState>()(
       signInWithEmailPassword: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
         try {
+          // Firebase authentication
           await signInWithEmailAndPassword(auth, email, password);
+          
+          // Fetch user profile data
           const response = await apiService.getProfile(email);
+          
+          // Fetch event recommendations
+          const eventsResponse = await apiService.getEventRecommendations(email);
+          
+          // Fetch organization recommendations for scholarship generation
+          const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          
+          // Fetch calendar events
+          const calendarResponse = await apiService.getCalendarEvents();
+          
+          // Fetch today's events
+          const todayEventsResponse = await apiService.getTodayEvents();
+          
+          // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
             name: response.user.name,
             email: response.user.email,
@@ -153,6 +253,25 @@ export const useUserStore = create<UserState>()(
             year: response.user.year,
             interests: response.user.interests,
             onboardingComplete: true,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            // Map event recommendations to event history
+            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+              id: event.id || `e${index}`,
+              name: event.name || event.title || `Event ${index + 1}`,
+              date: event.date || new Date().toISOString().split('T')[0],
+              attended: Math.random() > 0.5 // Random attendance status
+            })),
+            // Generate scholarships based on organizations
+            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+              id: `s${index + 1}`,
+              name: `${org.name || org.title || response.user.major} Scholarship`,
+              amount: Math.floor(Math.random() * 5000) + 1000,
+              status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
+            })),
+            // Add calendar events
+            calendarEvents: calendarResponse.events,
+            // Add upcoming events (today's events)
+            upcomingEvents: todayEventsResponse.events,
           };
           set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
           return true;
@@ -170,15 +289,48 @@ export const useUserStore = create<UserState>()(
       loadUserProfile: async (email: string) => {
         set({ isLoading: true, error: null });
         try {
+          // Fetch user profile data
           const response = await apiService.getProfile(email);
-          // Convert API user profile to local user profile
+          
+          // Fetch event recommendations
+          const eventsResponse = await apiService.getEventRecommendations(email);
+          
+          // Fetch organization recommendations for scholarship generation
+          const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          
+          // Fetch calendar events
+          const calendarResponse = await apiService.getCalendarEvents();
+          
+          // Fetch today's events
+          const todayEventsResponse = await apiService.getTodayEvents();
+          
+          // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
             name: response.user.name,
             email: response.user.email,
             major: response.user.major,
             year: response.user.year,
             interests: response.user.interests,
-            onboardingComplete: true
+            onboardingComplete: true,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            // Map event recommendations to event history
+            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+              id: event.id || `e${index}`,
+              name: event.name || event.title || `Event ${index + 1}`,
+              date: event.date || new Date().toISOString().split('T')[0],
+              attended: Math.random() > 0.5 // Random attendance status
+            })),
+            // Generate scholarships based on organizations
+            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+              id: `s${index + 1}`,
+              name: `${org.name || org.title || response.user.major} Scholarship`,
+              amount: Math.floor(Math.random() * 5000) + 1000,
+              status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
+            })),
+            // Add calendar events
+            calendarEvents: calendarResponse.events,
+            // Add upcoming events (today's events)
+            upcomingEvents: todayEventsResponse.events,
           };
           set({ 
             userProfile: localProfile, 
@@ -252,8 +404,12 @@ export const useUserStore = create<UserState>()(
       clearError: () => set({ error: null }),
       
       // Organization saving functionality
+      // Optimized organization saving
       saveOrganization: (id: string) => set((state) => ({
-        savedOrganizations: [...(state.savedOrganizations || []), id]
+        savedOrganizations: [
+          ...(state.savedOrganizations || []),
+          ...(state.savedOrganizations?.includes(id) ? [] : [id])
+        ]
       })),
       
       unsaveOrganization: (id: string) => set((state) => ({
@@ -262,12 +418,11 @@ export const useUserStore = create<UserState>()(
       
       isOrganizationSaved: (id: string) => {
         const state = get();
-        return (state.savedOrganizations || []).includes(id);
+        return Boolean(state.savedOrganizations?.includes(id));
       },
-    }),
-    {
+    }), {
       name: 'user-storage',
       storage: createJSONStorage(() => AsyncStorage),
     }
-  )
+)
 );

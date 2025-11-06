@@ -1,6 +1,10 @@
 // API service for connecting to the FastAPI backend
 import { config } from "./config";
 import { CalendarEvent } from "@/types/calendar";
+import { apiCache } from "./api-cache";
+import { Platform } from "react-native";
+import { organizations } from "@/mocks/organizations";
+import { scholarships } from "@/mocks/scholarships";
 
 const API_BASE_URL = config.API_BASE_URL;
 
@@ -83,50 +87,504 @@ export interface ChatGPTHistory {
 
 class ApiService {
   private baseUrl: string;
+  private networkStatus: 'online' | 'offline' | 'unknown' = 'online'; // Start optimistic
+  private abortControllers: Map<string, AbortController> = new Map();
 
-  constructor() {
-    this.baseUrl = API_BASE_URL;
+  constructor(API_BASE_URL: string = config.API_BASE_URL) {
+    // Get the appropriate base URL for the current environment
+    this.baseUrl = this.getAppropriateBaseUrl(API_BASE_URL);
+    
+    // Debug logging for environment variables (only in development)
+    if (__DEV__) {
+      console.log('🔧 Environment Variables:');
+      console.log('config.USE_MOCK_DATA:', config.USE_MOCK_DATA);
+      console.log('config.API_BASE_URL:', config.API_BASE_URL);
+      console.log('🌐 Using baseUrl:', this.baseUrl);
+    }
+    
+    // Test if we can connect to the backend
+    this.testBackendConnection();
+    
+    // Set up network status monitoring
+    this.setupNetworkMonitoring();
   }
-
+  
   /**
-   * Makes a request to the API
-   * @param endpoint The API endpoint
-   * @param options Request options
-   * @returns Promise with the response data
+   * Set up network status monitoring
    */
-  private async makeRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  private setupNetworkMonitoring() {
+    // Check network status initially
+    this.checkNetworkStatus();
+    
+    // Set up interval to check network status periodically
+    setInterval(() => this.checkNetworkStatus(), 30000); // Check every 30 seconds
+  }
+  
+  /**
+   * Attempt to make a real API request
+   */
+  private async attemptRealRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
-
+    
+    // Create manual timeout since AbortSignal.timeout is not supported in React Native
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     try {
       const response = await fetch(url, {
         ...options,
         headers,
+        signal: controller.signal,
       });
-
+      
+      clearTimeout(timeoutId);
+      
       if (!response.ok) {
-        const errorText = await response.text().catch(() => 'No error details');
-        console.error(`API error (${response.status}): ${errorText}`);
-        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-
+      
       return await response.json();
     } catch (error) {
-      if (error instanceof TypeError && error.message.includes('Network request failed')) {
-        console.error('Network error - API server may be down or unreachable');
-        throw new Error('Network error - Please check your internet connection or try again later');
-      }
-      console.error("API request failed:", error);
+      clearTimeout(timeoutId);
       throw error;
     }
   }
 
+  /**
+   * Check network status
+   */
+  private async checkNetworkStatus() {
+    if (__DEV__) console.log('Checking network status for:', `${this.baseUrl}/health`);
+    try {
+      // Create manual timeout since AbortSignal.timeout is not supported in React Native
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`${this.baseUrl}/health`, { 
+        method: 'GET',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      if (__DEV__) console.log('Health check response:', response.status, response.statusText);
+      
+      if (response.ok) {
+        this.networkStatus = 'online';
+        if (__DEV__) console.log('✅ Network status: ONLINE');
+      } else {
+        this.networkStatus = 'offline';
+        if (__DEV__) console.log('❌ Network status: OFFLINE (bad response):', response.status);
+      }
+    } catch (error) {
+      this.networkStatus = 'offline';
+      if (__DEV__) console.log('❌ Network status: OFFLINE (error):', error);
+    }
+  }
+  
+  /**
+   * Determines the appropriate base URL for the current environment
+   * @param configuredUrl The URL from the config
+   * @returns The appropriate URL for the current environment
+   */
+  private getAppropriateBaseUrl(configuredUrl: string): string {
+    // Check if we're running in a web browser
+    const isWeb = typeof window !== 'undefined' && window.document;
+    
+    // If we're in a web browser, we can use localhost
+    if (isWeb) {
+      console.log('Running in web browser, using localhost is OK');
+      return configuredUrl;
+    }
+    
+    // If we're on a mobile device, we need to use the LAN IP address
+    // The environment variables should already have the correct IP address
+    console.log('Running on mobile device, using LAN IP address');
+    return configuredUrl;
+  }
+  
+  // Test if we can connect to the backend
+  private async testBackendConnection() {
+    try {
+      const url = `${this.baseUrl}/health`;
+      console.log('Testing backend connection to:', url);
+      const response = await fetch(url, { method: 'GET' });
+      const data = await response.json();
+      console.log('Backend connection successful:', data);
+    } catch (error) {
+      console.error('Backend connection failed:', error);
+    }
+  }
+
+  /**
+   * Makes a request to the API with caching and deduplication
+   * @param endpoint The API endpoint
+   * @param options Request options
+   * @param cacheOptions Cache options
+   * @returns Promise with the response data
+   */
+  private async makeRequest<T>(
+    endpoint: string, 
+    options: RequestInit = {}, 
+    cacheOptions: { 
+      useCache?: boolean; 
+      cacheTTL?: number; 
+      cacheKey?: string;
+      forceRefresh?: boolean;
+    } = {}
+  ): Promise<T> {
+    const { 
+      useCache = true, 
+      cacheTTL = 5 * 60 * 1000, // 5 minutes default
+      cacheKey = `${endpoint}:${JSON.stringify(options.body || '')}`,
+      forceRefresh = false
+    } = cacheOptions;
+    
+    // If mock data is enabled, don't even attempt to make a real request
+    if (config.USE_MOCK_DATA) {
+      if (__DEV__) console.log(`Using mock data for endpoint: ${endpoint}`);
+      // Return mock data based on the endpoint
+      return this.getMockData<T>(endpoint, options);
+    }
+    
+    // If we're offline, try the real API first, then fall back to mock data
+    if (this.networkStatus === 'offline') {
+      if (__DEV__) console.log(`🔄 Network detected as offline, trying real API first for: ${endpoint}`);
+      try {
+        // Try the real API anyway in case network status is wrong
+        const result = await this.attemptRealRequest<T>(endpoint, options);
+        // If successful, update network status
+        this.networkStatus = 'online';
+        if (__DEV__) console.log('✅ Real API worked, updating network status to online');
+        return result;
+      } catch (error) {
+        if (__DEV__) console.log(`❌ Real API failed for ${endpoint}:`, error);
+        // if (__DEV__) console.log(`📱 Using mock data for: ${endpoint}`);
+        return this.getMockData<T>(endpoint, options);
+      }
+    }
+    
+    // For non-GET requests, don't use cache
+    const method = options.method || 'GET';
+    const shouldUseCache = useCache && method === 'GET';
+    
+    // If we should use cache and not forcing refresh, try to get from cache
+    if (shouldUseCache && !forceRefresh) {
+      const cachedData = apiCache.get<T>(cacheKey);
+      if (cachedData) {
+        if (__DEV__) console.log(`Cache hit for ${endpoint}`);
+        return cachedData;
+      }
+    }
+    
+    // If we're here, we need to make a real request
+    if (__DEV__) {
+      console.log(`🌐 API Request: ${options.method || 'GET'} ${endpoint}`);
+    }
+    
+    // Use the cache's deduplication mechanism for the actual request
+    return apiCache.withCache<T>(
+      `pending:${cacheKey}`,
+      async () => {
+        const url = `${this.baseUrl}${endpoint}`;
+        const headers = {
+          'Content-Type': 'application/json',
+          ...options.headers,
+        };
+        
+        // Create an abort controller for this request
+        const abortController = new AbortController();
+        const requestId = `${method}:${url}:${Date.now()}`;
+        this.abortControllers.set(requestId, abortController);
+        
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers,
+            signal: abortController.signal,
+          });
+          
+          // Remove the abort controller
+          this.abortControllers.delete(requestId);
+          
+          if (!response.ok) {
+            const errorText = await response.text().catch(() => 'No error details');
+            
+            // For 404 errors (endpoint not found), fall back to mock data silently
+            if (response.status === 404) {
+              if (__DEV__) {
+                console.log(`⚠️  Endpoint ${endpoint} not found (404), using mock data`);
+              }
+              return this.getMockData<T>(endpoint, options);
+            }
+            
+            // Log other errors
+            if (__DEV__) console.error(`API error (${response.status}): ${errorText}`);
+            throw new Error(`HTTP error! status: ${response.status}, details: ${errorText.substring(0, 100)}${errorText.length > 100 ? '...' : ''}`);
+          }
+          
+          const data = await response.json();
+          
+          // Log successful API response
+          if (__DEV__) {
+            console.log(`✅ API Success: ${endpoint}`, {
+              status: response.status,
+              dataType: Array.isArray(data) ? 'array' : typeof data,
+              itemCount: data?.events?.length || data?.organizations?.length || data?.scholarships?.length || 'N/A'
+            });
+          }
+          
+          // Cache the successful response if needed
+          if (shouldUseCache) {
+            apiCache.set(cacheKey, data, cacheTTL);
+          }
+          
+          return data;
+        } catch (error) {
+          // Remove the abort controller
+          this.abortControllers.delete(requestId);
+          
+          if (error instanceof TypeError && error.message.includes('Network request failed')) {
+            if (__DEV__) console.error(`Network error for ${url}:`, error.message);
+            if (__DEV__) console.log('Falling back to mock data due to network error');
+            return this.getMockData<T>(endpoint, options);
+          }
+          
+          // Check if it's an HTTP error with 404 status
+          if (error instanceof Error && error.message.includes('status: 404')) {
+            if (__DEV__) console.log(`404 error detected, falling back to mock data for: ${endpoint}`);
+            return this.getMockData<T>(endpoint, options);
+          }
+          
+          if (__DEV__) console.error(`API request failed for ${url}:`, error);
+          throw error;
+        }
+      },
+      0 // Don't cache the pending request result
+    );
+  }
+  
+  /**
+   * Provides mock data for endpoints when API is unavailable
+   * @param endpoint The API endpoint
+   * @param options Request options
+   * @returns Mock data for the endpoint
+   */
+  private getMockData<T>(endpoint: string, options: RequestInit = {}): T {
+    
+    // Generate appropriate mock data based on the endpoint
+    if (endpoint === '/health') {
+      return {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+      } as unknown as T;
+    } else if (endpoint === '/calendar' || endpoint.includes('calendar')) {
+      return this.getMockCalendarEvents(options) as unknown as T;
+    } else if (endpoint === '/today-events' || endpoint.includes('today-events')) {
+      return this.getMockTodayEvents() as unknown as T;
+    } else if (endpoint === '/organizations' || endpoint.includes('/organizations')) {
+      return {
+        organizations: organizations,
+      } as unknown as T;
+    } else if (endpoint === '/scholarships' || endpoint.includes('/scholarships')) {
+      return {
+        scholarships: scholarships,
+      } as unknown as T;
+    } else if (endpoint.includes('/chatgpt/')) {
+      return this.getMockChatGPTResponse(endpoint, options) as unknown as T;
+    } else {
+      // Default mock response
+      return {
+        success: true,
+        message: 'Mock data response',
+        data: [],
+      } as unknown as T;
+    }
+  }
+  
+  /**
+   * Generates mock calendar events
+   */
+  private getMockCalendarEvents(options: RequestInit = {}): { events: CalendarEvent[]; count: number } {
+    // Parse request body if available
+    let filters: any = {};
+    if (options.body && typeof options.body === 'string') {
+      try {
+        filters = JSON.parse(options.body);
+      } catch (e) {
+        console.error('Failed to parse request body:', e);
+      }
+    }
+    
+    // Generate dates based on filters or current month
+    const today = new Date();
+    const startDate = filters?.start_date ? new Date(filters.start_date) : new Date(today.getFullYear(), today.getMonth(), 1);
+    const endDate = filters?.end_date ? new Date(filters.end_date) : new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    // Generate some sample events within the date range
+    const events: CalendarEvent[] = [];
+    const daysBetween = Math.min(14, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
+    
+    for (let i = 0; i < daysBetween; i += 2) { // Add an event every other day
+      const eventDate = new Date(startDate);
+      eventDate.setDate(startDate.getDate() + i);
+      const dateStr = eventDate.toISOString().split('T')[0];
+      
+      events.push({
+        id: `mock-cal-${i}`,
+        title: `Sample Calendar Event ${i+1}`,
+        date: dateStr,
+        time: i % 2 === 0 ? '10:00 AM' : '2:00 PM',
+        duration: 60 + (i * 15),
+        location: i % 3 === 0 ? 'Main Campus' : i % 3 === 1 ? 'Library' : 'Student Center',
+        description: `This is a mock calendar event for ${dateStr}`,
+        color: ['#3357FF', '#FF5733', '#33FF57', '#FF33A8', '#33A8FF'][i % 5],
+        img: i % 4 === 0 ? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80' : undefined
+      });
+    }
+    
+    return {
+      events,
+      count: events.length
+    };
+  }
+  
+  /**
+   * Generates mock today's events
+   */
+  private getMockTodayEvents(): { events: CalendarEvent[]; count: number } {
+    // Generate current date in YYYY-MM-DD format
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    
+    // Return mock data
+    return {
+      events: [
+        {
+          id: 'mock-today-1',
+          title: 'Campus Career Fair',
+          date: dateStr,
+          time: '10:00 AM',
+          duration: 180,
+          location: 'Student Union',
+          description: 'Annual career fair with top employers',
+          color: '#3357FF',
+          img: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80'
+        },
+        {
+          id: 'mock-today-2',
+          title: 'Tech Workshop',
+          date: dateStr,
+          time: '2:00 PM',
+          duration: 120,
+          location: 'Engineering Building',
+          description: 'Learn the latest technologies',
+          color: '#FF5733'
+        },
+        {
+          id: 'mock-today-3',
+          title: 'Student Club Meeting',
+          date: dateStr,
+          time: '4:30 PM',
+          duration: 90,
+          location: 'Library Room 204',
+          description: 'Weekly meeting of the Computer Science Club',
+          color: '#33FF57'
+        }
+      ],
+      count: 3
+    };
+  }
+  
+  /**
+   * Generates mock ChatGPT responses
+   */
+  private getMockChatGPTResponse(endpoint: string, options: RequestInit = {}): any {
+    if (endpoint.includes('/chat')) {
+      // Parse request body
+      let requestBody: any = {};
+      if (options.body && typeof options.body === 'string') {
+        try {
+          requestBody = JSON.parse(options.body);
+        } catch (e) {
+          console.error('Failed to parse request body:', e);
+        }
+      }
+      
+      const userEmail = requestBody.user_email || 'user@example.com';
+      const lastMessage = requestBody.messages?.length > 0 
+        ? requestBody.messages[requestBody.messages.length - 1].content 
+        : 'Hello';
+      
+      return {
+        user_email: userEmail,
+        message: `This is a mock response to: "${lastMessage}". The backend is not connected, so I'm providing mock responses.`,
+        timestamp: new Date().toISOString(),
+        conversation_id: `mock-conv-${Date.now()}`
+      };
+    } else if (endpoint.includes('/history')) {
+      // Extract email from endpoint
+      const parts = endpoint.split('/');
+      const email = parts[parts.length - 1].split('?')[0] || 'user@example.com';
+      
+      return {
+        user_email: email,
+        conversations: [
+          {
+            user_message: 'What events are happening today?',
+            assistant_response: 'There are three events today: Campus Career Fair, Tech Workshop, and Student Club Meeting.',
+            timestamp: new Date().toISOString(),
+            conversation_id: 'mock-conv-1',
+            model: 'gpt-3.5-turbo'
+          },
+          {
+            user_message: 'What organizations should I join?',
+            assistant_response: 'Based on your interests, you might enjoy Computer Science Society or Business Leaders.',
+            timestamp: new Date().toISOString(),
+            conversation_id: 'mock-conv-2',
+            model: 'gpt-3.5-turbo'
+          }
+        ]
+      };
+    }
+    
+    return {
+      success: true,
+      message: 'Mock ChatGPT response',
+    };
+  }
+
+  /**
+   * Cancel all pending requests
+   */
+  cancelAllRequests(): void {
+    for (const controller of this.abortControllers.values()) {
+      controller.abort();
+    }
+    this.abortControllers.clear();
+  }
+  
+  /**
+   * Clear all cached data
+   */
+  clearCache(): void {
+    apiCache.clear();
+  }
+  
+  /**
+   * Clear cached data for a specific endpoint
+   * @param endpoint The endpoint to clear cache for
+   */
+  clearCacheForEndpoint(endpoint: string): void {
+    apiCache.invalidateByPrefix(endpoint);
+  }
+  
   // Health check
   async healthCheck(): Promise<{ status: string; timestamp: string }> {
-    return this.makeRequest("/health");
+    return this.makeRequest("/health", {}, { cacheTTL: 30000 }); // Short cache time for health check
   }
 
   // Get available majors
@@ -205,6 +663,16 @@ class ApiService {
       category: "orgs",
     });
   }
+  
+  // Get scholarships
+  async getScholarships(): Promise<{ scholarships: any[] }> {
+    return this.makeRequest("/scholarships");
+  }
+  
+  // Get organizations
+  async getOrganizations(): Promise<{ organizations: any[] }> {
+    return this.makeRequest("/organizations");
+  }
 
   // Get event recommendations
   async getEventRecommendations(
@@ -228,48 +696,109 @@ class ApiService {
 
   // ChatGPT API methods
   async chatGPT(request: ChatGPTRequest): Promise<ChatGPTResponse> {
-    return this.makeRequest(config.ENDPOINTS.CHATGPT.CHAT, {
-      method: "POST",
-      body: JSON.stringify(request),
-    });
+    if (config.USE_MOCK_DATA) {
+      // Use mock data directly when mock data flag is set
+      return this.getMockChatGPTResponse(config.ENDPOINTS.CHATGPT.CHAT, {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+    }
+    
+    try {
+      return this.makeRequest(config.ENDPOINTS.CHATGPT.CHAT, {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+    } catch (error) {
+      console.error('Failed to send chat message:', error);
+      console.warn('Using mock ChatGPT response');
+      
+      // Use mock data as fallback
+      return this.getMockChatGPTResponse(config.ENDPOINTS.CHATGPT.CHAT, {
+        method: "POST",
+        body: JSON.stringify(request),
+      });
+    }
   }
 
   async getChatGPTHistory(
     userEmail: string,
     limit: number = 20
   ): Promise<ChatGPTHistory> {
+    if (config.USE_MOCK_DATA) {
+      // Use mock data directly when mock data flag is set
+      return this.getMockChatGPTResponse(
+        `${config.ENDPOINTS.CHATGPT.HISTORY}/${encodeURIComponent(userEmail)}`,
+        {}
+      );
+    }
+    
     try {
-      return await this.makeRequest(
+      console.log(`Fetching ChatGPT history for ${userEmail} with limit ${limit}`);
+      const response = await this.makeRequest<ChatGPTHistory>(
         `${config.ENDPOINTS.CHATGPT.HISTORY}/${encodeURIComponent(
           userEmail
         )}?limit=${limit}`
       );
+      console.log(`Successfully fetched ChatGPT history for ${userEmail}`);
+      return response;
     } catch (error) {
-      // Check if it's a 404 error (no history found)
-      if (
-        error instanceof Error &&
-        (error.message.includes("404") ||
-          error.message.includes("not found") ||
-          error.message.toLowerCase().includes("no chat history"))
-      ) {
-        // Return empty conversations array instead of throwing
-        console.log(`No chat history found for user: ${userEmail}`);
-        return {
-          user_email: userEmail,
-          conversations: [],
-        };
+      // Log detailed error information
+      console.error(`Error fetching ChatGPT history for ${userEmail}:`, error);
+      
+      if (error instanceof Error) {
+        console.error(`Error name: ${error.name}, message: ${error.message}`);
       }
-      // For other errors, rethrow
-      throw error;
+      
+      // Use mock data as fallback for errors
+      console.log(`Using mock ChatGPT history data for ${userEmail}`);
+      return this.getMockChatGPTResponse(
+        `${config.ENDPOINTS.CHATGPT.HISTORY}/${encodeURIComponent(userEmail)}`,
+        {}
+      );
     }
   }
 
   // Get WebSocket URL for ChatGPT streaming
   getChatGPTWebSocketUrl(userEmail: string): string {
-    const wsBaseUrl = this.baseUrl.replace(/^http/, "ws");
-    return `${wsBaseUrl}${
-      config.ENDPOINTS.CHATGPT.WEBSOCKET
-    }/${encodeURIComponent(userEmail)}`;
+    try {
+      const wsBaseUrl = this.baseUrl.replace(/^http/, "ws");
+      const url = `${wsBaseUrl}${config.ENDPOINTS.CHATGPT.WEBSOCKET}/${encodeURIComponent(userEmail)}`;
+      console.log(`Generated WebSocket URL: ${url}`);
+      return url;
+    } catch (error) {
+      console.error('Error generating WebSocket URL:', error);
+      // Fallback to a default URL if there's an error
+      return `ws://localhost:8000${config.ENDPOINTS.CHATGPT.WEBSOCKET}/${encodeURIComponent(userEmail)}`;
+    }
+  }
+
+  /**
+   * Delete a specific conversation from chat history
+   * @param userEmail User's email address
+   * @param conversationId ID of the conversation to delete
+   * @returns Promise with success status
+   */
+  async deleteChatGPTConversation(
+    userEmail: string,
+    conversationId: string
+  ): Promise<{ success: boolean }> {
+    return this.makeRequest(`${config.ENDPOINTS.CHATGPT.HISTORY}/${encodeURIComponent(userEmail)}/${conversationId}`, {
+      method: "DELETE",
+    });
+  }
+
+  /**
+   * Delete all conversations for a user
+   * @param userEmail User's email address
+   * @returns Promise with success status
+   */
+  async deleteAllChatGPTConversations(
+    userEmail: string
+  ): Promise<{ success: boolean }> {
+    return this.makeRequest(`${config.ENDPOINTS.CHATGPT.HISTORY}/${encodeURIComponent(userEmail)}`, {
+      method: "DELETE",
+    });
   }
 
   // Calendar API methods
@@ -285,6 +814,13 @@ class ApiService {
     categories?: string[];
     location?: string;
   }): Promise<{ events: CalendarEvent[]; count: number }> {
+    if (config.USE_MOCK_DATA) {
+      // Use mock data directly when mock data flag is set
+      return this.getMockCalendarEvents({
+        body: filters ? JSON.stringify(filters) : JSON.stringify({})
+      });
+    }
+    
     try {
       const response = await this.makeRequest<{ events: CalendarEvent[]; count: number }>('/calendar', {
         method: "POST",
@@ -293,41 +829,12 @@ class ApiService {
       return response;
     } catch (error) {
       console.error("Failed to fetch calendar events:", error);
-      
-      // Provide fallback data when API is unavailable
       console.warn("Using fallback data for calendar events");
       
-      // Generate dates based on filters or current month
-      const today = new Date();
-      const startDate = filters?.start_date ? new Date(filters.start_date) : new Date(today.getFullYear(), today.getMonth(), 1);
-      const endDate = filters?.end_date ? new Date(filters.end_date) : new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      
-      // Generate some sample events within the date range
-      const events: CalendarEvent[] = [];
-      const daysBetween = Math.min(14, Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)));
-      
-      for (let i = 0; i < daysBetween; i += 2) { // Add an event every other day
-        const eventDate = new Date(startDate);
-        eventDate.setDate(startDate.getDate() + i);
-        const dateStr = eventDate.toISOString().split('T')[0];
-        
-        events.push({
-          id: `fallback-cal-${i}`,
-          title: `Sample Calendar Event ${i+1}`,
-          date: dateStr,
-          time: i % 2 === 0 ? '10:00 AM' : '2:00 PM',
-          duration: 60 + (i * 15),
-          location: i % 3 === 0 ? 'Main Campus' : i % 3 === 1 ? 'Library' : 'Student Center',
-          description: `This is a fallback calendar event for ${dateStr}`,
-          color: ['#3357FF', '#FF5733', '#33FF57', '#FF33A8', '#33A8FF'][i % 5],
-          img: i % 4 === 0 ? 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&auto=format&fit=crop&w=1740&q=80' : undefined
-        });
-      }
-      
-      return {
-        events,
-        count: events.length
-      };
+      // Use mock data as fallback
+      return this.getMockCalendarEvents({
+        body: filters ? JSON.stringify(filters) : JSON.stringify({})
+      });
     }
   }
 
@@ -336,46 +843,36 @@ class ApiService {
    * @returns Promise with array of today's calendar events and count
    */
   async getTodayEvents(): Promise<{ events: CalendarEvent[]; count: number }> {
+    // Get today's date in YYYY-MM-DD format for caching
+    const today = new Date();
+    const dateStr = today.toISOString().split('T')[0];
+    
     try {
-      const response = await this.makeRequest<{ events: CalendarEvent[]; count: number }>('/today-events');
-      return response;
-    } catch (error) {
-      console.error("Failed to fetch today's events:", error);
+      // Make request to API with caching
+      const response = await this.makeRequest<{ events: CalendarEvent[]; count: number }>(
+        '/today-events',
+        {},
+        { 
+          cacheKey: `today-events:${dateStr}`,
+          cacheTTL: 5 * 60 * 1000 // 5 minutes cache
+        }
+      );
       
-      // Provide fallback data when API is unavailable
-      console.warn("Using fallback data for today's events");
+      // Filter to ensure only today's events are returned
+      const todayEvents = response.events.filter(event => {
+        const eventDate = new Date(event.date);
+        return eventDate.toISOString().split('T')[0] === dateStr;
+      });
       
-      // Generate current date in YYYY-MM-DD format
-      const today = new Date();
-      const dateStr = today.toISOString().split('T')[0];
-      
-      // Return mock data as fallback
       return {
-        events: [
-          {
-            id: 'fallback-1',
-            title: 'Sample Event 1',
-            date: dateStr,
-            time: '10:00 AM',
-            duration: 60,
-            location: 'Main Campus',
-            description: 'This is a fallback event due to API unavailability',
-            color: '#3357FF',
-            img: 'https://images.unsplash.com/photo-1501281668745-f7f57925c3b4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1740&q=80'
-          },
-          {
-            id: 'fallback-2',
-            title: 'Sample Event 2',
-            date: dateStr,
-            time: '2:00 PM',
-            duration: 90,
-            location: 'Library',
-            description: 'Another fallback event with sample data',
-            color: '#FF5733'
-          }
-        ],
-        count: 2
+        events: todayEvents,
+        count: todayEvents.length
       };
+    } catch (error) {
+      if (__DEV__) console.error("Failed to fetch today's events:", error);
+      
+      // Use mock data as fallback
+      return this.getMockTodayEvents();
     }
   }
   /**

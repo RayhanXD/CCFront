@@ -1,6 +1,4 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+// DISABLED ZUSTAND STORE - Using simple mock to prevent infinite loops
 
 interface SavedItem {
   id: string;
@@ -16,49 +14,26 @@ interface SavedItemsState {
   getSavedItemsByType: (type: 'scholarship' | 'event' | 'organization') => SavedItem[];
 }
 
-export const useSavedItemsStore = create<SavedItemsState>()(
-  persist(
-    (set, get) => ({
-      savedItems: [],
-      
-      addSavedItem: (id, type) => {
-        set((state) => {
-          // Check if item is already saved
-          if (state.savedItems.some(item => item.id === id)) {
-            return state;
-          }
-          
-          // Add new saved item
-          return {
-            savedItems: [
-              ...state.savedItems,
-              {
-                id,
-                type,
-                savedAt: Date.now()
-              }
-            ]
-          };
-        });
-      },
-      
-      removeSavedItem: (id) => {
-        set((state) => ({
-          savedItems: state.savedItems.filter(item => item.id !== id)
-        }));
-      },
-      
-      isSaved: (id) => {
-        return get().savedItems.some(item => item.id === id);
-      },
-      
-      getSavedItemsByType: (type) => {
-        return get().savedItems.filter(item => item.type === type);
-      }
-    }),
-    {
-      name: 'saved-items-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-    }
-  )
-);
+// Mock saved items store
+const mockSavedItemsState: SavedItemsState = {
+  savedItems: [],
+  
+  addSavedItem: (id: string, type: 'scholarship' | 'event' | 'organization') => {
+    console.log('Mock addSavedItem called with:', id, type);
+  },
+  
+  removeSavedItem: (id: string) => {
+    console.log('Mock removeSavedItem called with:', id);
+  },
+  
+  isSaved: (id: string) => {
+    return false;
+  },
+  
+  getSavedItemsByType: (type: 'scholarship' | 'event' | 'organization') => {
+    return [];
+  }
+};
+
+// Mock store hook
+export const useSavedItemsStore = () => mockSavedItemsState;

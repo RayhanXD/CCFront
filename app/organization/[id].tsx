@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
@@ -9,7 +9,12 @@ import {
   Image, 
   ScrollView, 
   StatusBar,
-  Linking
+  Linking,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+  Share,
+  Platform
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
@@ -25,22 +30,73 @@ import {
   Bookmark,
   Tag,
   Users,
-  Info
+  Info,
+  AlertTriangle,
+  CalendarPlus,
+  ChevronRight
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useCampusStore } from '@/store/campus-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { useUserStore } from '@/store/user-store';
+import { apiService } from '@/lib/api';
+import { Organization } from '@/types/organization';
 
 export default function OrganizationDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { organizations } = useCampusStore();
+  const { organizations, fetchOrganizations } = useCampusStore();
   const { saveOrganization, unsaveOrganization, isOrganizationSaved } = useUserStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [organization, setOrganization] = useState<Organization | null>(null);
   
-  // Find the organization by ID
-  const organization = organizations.find(org => org.id === id);
+  const fetchOrganization = useCallback(async () => {
+    if (!id) {
+      setLoading(false);
+      setError('No organization ID provided');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First check local store
+      let org = organizations.find(org => org.id === id);
+      
+      // If not found locally, try to fetch from API
+      if (!org) {
+        await fetchOrganizations(); // Refresh the organizations list
+        org = organizations.find(org => org.id === id);
+      }
+      
+      if (org) {
+        setOrganization(org);
+      } else {
+        setError('Organization not found');
+      }
+    } catch (err) {
+      console.error('Error fetching organization:', err);
+      setError('Failed to load organization details');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [id, organizations, fetchOrganizations]);
+  
+  // Initial load
+  useEffect(() => {
+    fetchOrganization();
+  }, [fetchOrganization]);
+  
+  // Handle pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchOrganization();
+  }, [fetchOrganization]);
   
   // Check if organization is saved
   const saved = organization ? isOrganizationSaved?.(organization.id) || false : false;
@@ -53,11 +109,20 @@ export default function OrganizationDetailsScreen() {
   ];
   
   // Handle share
-  const handleShare = () => {
-    if (organization) {
-      const message = `Check out ${organization.name} on Campus Connect!`;
-      // In a real app, you would implement platform-specific sharing
-      console.log('Share organization:', message);
+  const handleShare = async () => {
+    if (!organization) return;
+    
+    try {
+      const shareOptions = {
+        message: `Check out ${organization.name} on Campus Connect!`,
+        title: organization.name,
+        url: organization.website || 'https://campusconnect.app',
+      };
+      
+      await Share.share(shareOptions);
+    } catch (error) {
+      console.error('Error sharing:', error);
+      Alert.alert('Error', 'Could not share organization');
     }
   };
   
@@ -90,7 +155,18 @@ export default function OrganizationDetailsScreen() {
     }
   };
   
-  if (!organization) {
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Loading organization details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !organization) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -100,17 +176,18 @@ export default function OrganizationDetailsScreen() {
           >
             <ChevronLeft size={24} color={Colors.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Organization Details</Text>
-          <View style={styles.placeholder} />
+          <Text style={styles.headerTitle}>Organization</Text>
+          <View style={styles.headerRight} />
         </View>
         
-        <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundText}>Organization not found</Text>
+        <View style={styles.centered}>
+          <AlertTriangle size={48} color={Colors.error} style={styles.errorIcon} />
+          <Text style={styles.errorText}>{error || 'Organization not found'}</Text>
           <TouchableOpacity 
-            style={styles.notFoundButton}
-            onPress={() => router.push('/')}
+            style={styles.retryButton}
+            onPress={fetchOrganization}
           >
-            <Text style={styles.notFoundButtonText}>Go Back Home</Text>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>

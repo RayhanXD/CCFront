@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, Animated } from 'react-native';
+import { View, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, Animated } from 'react-native';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import ScholarshipFilterTabs from '@/components/ScholarshipFilterTabs';
@@ -7,25 +7,40 @@ import { ScholarshipCard } from '@/components/ScholarshipCard';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { useTheme } from '@/contexts/theme-context';
 import BackToTopButton from '@/components/BackToTopButton';
-import { useDialog } from '@/context/DialogContext';
+import { useDialog } from '@/contexts/dialog-context';
+import ThemedText from '@/components/ThemedText';
 
-export default function ScholarshipsScreen() {
+export default React.memo(function ScholarshipsScreen() {
   const router = useRouter();
-  const { filteredScholarships, selectedFilter, setSelectedFilter } = useScholarshipStore();
+  const { selectedFilter, setSelectedFilter } = useScholarshipStore();
+  const filteredScholarships = useScholarshipStore(state => state.getFilteredScholarships());
   const { showError } = useDialog();
   const { theme, isDarkMode } = useTheme();
-  const scrollY = new Animated.Value(0);
+  // Use useRef for values that shouldn't trigger re-renders
+  const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
 
+  // Use a ref to track if we've shown the error
+  const hasShownErrorRef = useRef(false);
+  
   // Check if there are no scholarships for the selected filter
   useEffect(() => {
-    if (filteredScholarships.length === 0 && selectedFilter !== 'all') {
-      showError({
-        title: 'No Scholarships Found',
-        message: `There are no scholarships available for the ${selectedFilter} filter. Would you like to view all scholarships?`,
-        buttonText: 'View All',
-        buttonAction: () => setSelectedFilter('all')
-      });
+    // Only show error once per filter change and only if we have no results
+    if (filteredScholarships.length === 0 && selectedFilter !== 'all' && !hasShownErrorRef.current) {
+      hasShownErrorRef.current = true;
+      
+      // Use setTimeout to break the update cycle
+      setTimeout(() => {
+        showError({
+          title: 'No Scholarships Found',
+          message: `There are no scholarships available for the ${selectedFilter} filter. Would you like to view all scholarships?`,
+          buttonText: 'View All',
+          buttonAction: () => setSelectedFilter('all')
+        });
+      }, 100);
+    } else if (filteredScholarships.length > 0 || selectedFilter === 'all') {
+      // Reset the flag when we have results or switch to 'all'
+      hasShownErrorRef.current = false;
     }
   }, [selectedFilter, filteredScholarships.length]);
 
@@ -47,18 +62,19 @@ export default function ScholarshipsScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
 
+  // Memoize the render function to prevent unnecessary re-renders
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <CustomStatusBar />
       
       <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
         <View style={styles.titleContainer}>
-          <Text style={[styles.title, { color: theme.text }]}>
-            Financial <Text style={[styles.titleHighlight, { color: theme.primary }]}>Opportunities</Text>
-          </Text>
-          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+          <ThemedText variant="h1" weight="bold" style={styles.title}>
+            Financial <ThemedText variant="h1" weight="bold" color="accent">Opportunities</ThemedText>
+          </ThemedText>
+          <ThemedText variant="body" color="secondary" style={styles.subtitle}>
             Discover scholarships and grants that match your academic profile
-          </Text>
+          </ThemedText>
         </View>
       </View>
       
@@ -83,14 +99,16 @@ export default function ScholarshipsScreen() {
         />
       ) : (
         <View style={[styles.emptyState, { backgroundColor: theme.cardBackground }]}>
-          <Text style={[styles.emptyStateText, { color: theme.textSecondary }]}>
+          <ThemedText variant="body" color="secondary" style={styles.emptyStateText}>
             No scholarships found for the {selectedFilter} filter.
-          </Text>
+          </ThemedText>
           <TouchableOpacity 
             style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
             onPress={() => useScholarshipStore.getState().setSelectedFilter('all')}
           >
-            <Text style={[styles.emptyStateButtonText, { color: theme.textInverted }]}>View All</Text>
+            <ThemedText variant="button" color="inverted" style={styles.emptyStateButtonText}>
+              View All
+            </ThemedText>
           </TouchableOpacity>
         </View>
       )}
@@ -101,7 +119,7 @@ export default function ScholarshipsScreen() {
       />
     </SafeAreaView>
   );
-}
+});
 
 // Import Colors for backward compatibility
 import Colors from '@/constants/colors';
@@ -119,11 +137,8 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
     marginBottom: 8,
     lineHeight: 36,
-  },
-  titleHighlight: {
   },
   subtitle: {
     fontSize: 15,

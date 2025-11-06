@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
@@ -10,12 +10,14 @@ import {
   ScrollView, 
   Linking,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  RefreshControl,
+  Platform,
+  Dimensions
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
   ChevronLeft, 
-  Calendar, 
   Clock, 
   MapPin, 
   Share2, 
@@ -26,7 +28,11 @@ import {
   Info,
   ExternalLink,
   CalendarPlus,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft,
+  Calendar as CalendarIcon,
+  Share as ShareIcon,
+  AlertTriangle
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
@@ -34,6 +40,31 @@ import { useCalendarStore } from '@/store/calendar-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { CalendarEvent } from '@/types/calendar';
 import { TodayEvent } from '@/types/events';
+import { apiService } from '@/lib/api';
+import * as WebBrowser from 'expo-web-browser';
+import * as Calendar from 'expo-calendar';
+import * as Sharing from 'expo-sharing';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
+
+type EventType = (CalendarEvent | TodayEvent) & {
+  id: string;
+  title: string;
+  description?: string;
+  location?: string;
+  imageUrl?: string;
+  img?: string;
+  date?: string;
+  time?: string;
+  startTime?: string;
+  endTime?: string;
+  organizer?: string;
+  tags?: string[];
+  relevanceScore?: number;
+  isRecurring?: boolean;
+  url?: string;
+  importantInfo?: string;
+  audience?: string;
+};
 
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -43,28 +74,60 @@ export default function EventDetailsScreen() {
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [event, setEvent] = useState<CalendarEvent | TodayEvent | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   
-  // Find the event by ID from either today's events or calendar events
-  useEffect(() => {
+  const fetchEvent = useCallback(async () => {
     if (!id) {
       setLoading(false);
+      setError('No event ID provided');
       return;
     }
     
-    // First check today's events
-    let foundEvent = todayEvents.find(e => e.id === id);
-    
-    // If not found, check calendar events
-    if (!foundEvent) {
-      const calendarEvent = calendarEvents.find(e => e.id === id);
-      if (calendarEvent) {
-        foundEvent = calendarEvent as unknown as TodayEvent;
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // First check local stores
+      let foundEvent = todayEvents.find(e => e.id === id) || 
+                      calendarEvents.find(e => e.id === id);
+      
+      // If not found locally, try to fetch from API
+      if (!foundEvent) {
+        try {
+          const response = await apiService.getEventById(id);
+          if (response) {
+            foundEvent = response as TodayEvent;
+          }
+        } catch (err) {
+          console.warn('Failed to fetch event from API:', err);
+        }
       }
+      
+      if (foundEvent) {
+        setEvent(foundEvent);
+      } else {
+        setError('Event not found');
+      }
+    } catch (err) {
+      console.error('Error fetching event:', err);
+      setError('Failed to load event details');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    
-    setEvent(foundEvent || null);
-    setLoading(false);
   }, [id, todayEvents, calendarEvents]);
+  
+  // Initial load
+  useEffect(() => {
+    fetchEvent();
+  }, [fetchEvent]);
+  
+  // Handle pull to refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchEvent();
+  }, [fetchEvent]);
   
   // Check if event is saved
   const saved = event ? isEventSaved(event.id) : false;
@@ -160,8 +223,8 @@ export default function EventDetailsScreen() {
       </SafeAreaView>
     );
   }
-  
-  if (!event) {
+
+  if (error || !event) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -172,16 +235,17 @@ export default function EventDetailsScreen() {
             <ChevronLeft size={24} color={Colors.text} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Event Details</Text>
-          <View style={styles.placeholder} />
+          <View style={styles.headerRight} />
         </View>
         
-        <View style={styles.notFoundContainer}>
-          <Text style={styles.notFoundText}>Event not found</Text>
+        <View style={styles.centered}>
+          <AlertTriangle size={48} color={Colors.danger} style={styles.errorIcon} />
+          <Text style={styles.errorText}>{error || 'Event not found'}</Text>
           <TouchableOpacity 
-            style={styles.notFoundButton}
-            onPress={() => router.push('/')}
+            style={styles.retryButton}
+            onPress={fetchEvent}
           >
-            <Text style={styles.notFoundButtonText}>Go Back Home</Text>
+            <Text style={styles.retryButtonText}>Try Again</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -220,7 +284,7 @@ export default function EventDetailsScreen() {
             />
           ) : (
             <View style={[styles.imagePlaceholder, 'color' in event && event.color ? { backgroundColor: event.color } : null]}>
-              <Calendar size={48} color={Colors.white} />
+              <CalendarIcon size={48} color={Colors.white} />
             </View>
           )}
           
@@ -266,7 +330,7 @@ export default function EventDetailsScreen() {
           <View style={styles.infoContainer}>
             {'date' in event && event.date && (
               <View style={styles.infoItem}>
-                <Calendar size={16} color={Colors.textSecondary} />
+                <CalendarIcon size={16} color={Colors.textSecondary} />
                 <Text style={styles.infoText}>
                   {formatDate(event.date)}
                 </Text>

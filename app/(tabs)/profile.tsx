@@ -1,15 +1,39 @@
 import React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, User, BookOpen, Award, Heart, Settings, Edit } from 'lucide-react-native';
+import { ChevronRight, User, BookOpen, Award, Heart, Settings, Edit, Calendar } from 'lucide-react-native';
 import { useTheme } from '@/contexts/theme-context';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserStore } from '@/store/user-store';
 
+// Create a stable component that doesn't re-render unnecessarily
 export default function ProfileScreen() {
   const router = useRouter();
-  const { userProfile, signOutFirebase } = useUserStore();
+  const { userProfile, signOutFirebase, savedOrganizations } = useUserStore();
   const { theme, isDarkMode } = useTheme();
+  
+  // Create a stable reference to upcoming events to avoid infinite loops
+  // Using a simple variable instead of useMemo to avoid dependency tracking issues
+  const upcomingEvents = userProfile?.upcomingEvents || [];
+  
+  // Use simple variables instead of useMemo to avoid dependency tracking issues
+  const savedOrgsCount = savedOrganizations?.length || 0;
+  const eventsCount = userProfile?.eventHistory?.length || 0;
+  const scholarshipsCount = userProfile?.scholarships?.length || 0;
+  
+  // Simple function to format time - no need for useCallback
+  const formatTime = (timeString: string) => {
+    return timeString || 'TBD';
+  };
+  
+  // Simple variable for avatar URL
+  const avatarUrl = userProfile?.photoUrl || 
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile?.name || 'User')}&background=7B5CFF&color=fff&size=200`;
+  
+  // Navigate to calendar
+  const handleViewCalendar = () => {
+    router.push('/calendar');
+  };
   
   const handleEditProfile = () => {
     router.push('/profile/edit');
@@ -32,9 +56,7 @@ export default function ProfileScreen() {
     }
   }
   
-  
-  // Placeholder avatar URL
-  const avatarUrl = 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=634&q=80';
+  // Handle navigation and other callbacks
   
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
@@ -93,7 +115,7 @@ export default function ProfileScreen() {
             <ChevronRight size={18} color={theme.textSecondary} />
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.menuItem} onPress={handleSettings}>
+          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleSettings}>
             <View style={styles.menuItemLeft}>
               <View style={[styles.menuItemIcon, { backgroundColor: isDarkMode ? '#333333' : '#F0F0F0' }]}>
                 <Settings size={18} color={theme.text} />
@@ -112,7 +134,7 @@ export default function ProfileScreen() {
               <View style={[styles.statIconContainer, { backgroundColor: theme.primaryLight }]}>
                 <User size={20} color={theme.primary} />
               </View>
-              <Text style={[styles.statValue, { color: theme.text }]}>5</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{savedOrgsCount}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Organizations</Text>
             </View>
             
@@ -120,7 +142,7 @@ export default function ProfileScreen() {
               <View style={[styles.statIconContainer, { backgroundColor: isDarkMode ? '#162A39' : '#E5F5FF' }]}>
                 <Award size={20} color="#0085FF" />
               </View>
-              <Text style={[styles.statValue, { color: theme.text }]}>3</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{scholarshipsCount}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Scholarships</Text>
             </View>
             
@@ -128,10 +150,55 @@ export default function ProfileScreen() {
               <View style={[styles.statIconContainer, { backgroundColor: isDarkMode ? '#332815' : '#FFF2E5' }]}>
                 <BookOpen size={20} color="#FF8A00" />
               </View>
-              <Text style={[styles.statValue, { color: theme.text }]}>12</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{eventsCount}</Text>
               <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Events</Text>
             </View>
           </View>
+        </View>
+        
+        {/* Upcoming Events Section */}
+        <View style={styles.upcomingEventsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.statsSectionTitle, { color: theme.text }]}>Upcoming Events</Text>
+            <TouchableOpacity onPress={handleViewCalendar}>
+              <Text style={[styles.viewAllText, { color: theme.primary }]}>View All</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {Array.isArray(upcomingEvents) && upcomingEvents.length > 0 ? (
+            <View style={[styles.eventsContainer, { backgroundColor: theme.cardBackground }]}>
+              {upcomingEvents.slice(0, 3).map((event, index) => {
+                // Skip rendering if event is missing required properties
+                if (!event || !event.id) return null;
+                
+                return (
+                  <View 
+                    key={event.id || index} 
+                    style={[
+                      styles.eventItem,
+                      index < Math.min(upcomingEvents.length, 3) - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border }
+                    ]}
+                  >
+                    <View style={[styles.eventColorIndicator, { backgroundColor: event.color || theme.primary }]} />
+                    <View style={styles.eventDetails}>
+                      <Text style={[styles.eventTitle, { color: theme.text }]} numberOfLines={1}>
+                        {event.title || 'Untitled Event'}
+                      </Text>
+                      <Text style={[styles.eventTime, { color: theme.textSecondary }]}>
+                        {event.date || 'No date'} • {formatTime(event.time || '')}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          ) : (
+            <View style={[styles.emptyEventsContainer, { backgroundColor: theme.cardBackground }]}>
+              <Text style={[styles.emptyEventsText, { color: theme.textSecondary }]}>
+                No upcoming events
+              </Text>
+            </View>
+          )}
         </View>
           <TouchableOpacity style={[styles.logoutButton, { backgroundColor: theme.logoutButton }]} onPress={handleLogout}>
             <Text style={styles.logoutButtonText}>Logout</Text>
@@ -286,6 +353,7 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     marginHorizontal: 20,
+    marginBottom: 20,
   },
   statsSectionTitle: {
     fontSize: 18,
@@ -328,6 +396,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  
+  // Upcoming Events Section Styles
+  upcomingEventsSection: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  viewAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  eventsContainer: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  eventItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+  },
+  eventColorIndicator: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 12,
+  },
+  eventDetails: {
+    flex: 1,
+  },
+  eventTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  eventTime: {
+    fontSize: 13,
+  },
+  emptyEventsContainer: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  emptyEventsText: {
+    fontSize: 15,
+    fontStyle: 'italic',
   },
 
   logoutButton: {

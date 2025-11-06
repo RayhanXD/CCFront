@@ -1,35 +1,27 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, ChevronDown, Calendar as CalendarIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/colors';
-import { useCalendarStore, useInitializeCalendar } from '@/store/calendar-store';
+import { useCalendarEvents } from '@/hooks/useApiData';
 import { CalendarEvent } from '@/types/calendar';
 import EventCard from '@/components/EventCard';
+import { useTheme } from '@/contexts/theme-context';
+import ThemedText from '@/components/ThemedText';
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
 
 export default function CalendarScreen() {
-  const { 
-    events, 
-    isLoading,
-    error,
-    selectedDate: storeSelectedDate, 
-    setSelectedDate,
-    fetchEvents 
-  } = useCalendarStore();
+  // Use API data hook to fetch real calendar events
+  const { data: calendarData, loading: isLoading, error, refetch } = useCalendarEvents();
+  const events = calendarData?.events || [];
+  
+  const { theme, isDarkMode } = useTheme();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [visibleEvents, setVisibleEvents] = useState(3); // Number of events to show initially
-  
-  // Initialize calendar data
-  useInitializeCalendar();
-  
-  // Ensure selectedDate is a valid Date object
-  const selectedDate = storeSelectedDate instanceof Date ? 
-    storeSelectedDate : 
-    new Date();
+  const [selectedDate, setSelectedDate] = useState(new Date());
   
   // Get current date info
   const today = new Date();
@@ -136,7 +128,7 @@ export default function CalendarScreen() {
     const end_date = lastDay.toISOString().split('T')[0];
     
     // Fetch events for the current month
-    fetchEvents({ start_date, end_date });
+    refetch();
   };
   
   // Fetch events when the month changes
@@ -158,7 +150,14 @@ export default function CalendarScreen() {
     weekdays.forEach((day, index) => {
       days.push(
         <View key={`header-${index}`} style={styles.weekdayHeader}>
-          <Text style={styles.weekdayText}>{day}</Text>
+          <ThemedText 
+            variant="caption" 
+            weight="semibold" 
+            color="secondary" 
+            style={styles.weekdayText}
+          >
+            {day}
+          </ThemedText>
         </View>
       );
     });
@@ -197,21 +196,22 @@ export default function CalendarScreen() {
           key={`day-${day}`} 
           style={[
             styles.dayCell,
-            isToday && styles.todayCell,
-            isSelected && styles.selectedCell,
+            isToday && [styles.todayCell, { backgroundColor: theme.primaryLight }],
+            isSelected && [styles.selectedCell, { backgroundColor: theme.primary }],
           ]}
           onPress={() => handleDaySelect(day)}
         >
-          <Text 
+          <ThemedText 
+            variant="body" 
             style={[
               styles.dayText,
-              isToday && styles.todayText,
-              isSelected && styles.selectedText,
+              isToday && [styles.todayText, { color: theme.primary }],
+              isSelected && [styles.selectedText, { color: theme.white }],
             ]}
           >
             {day}
-          </Text>
-          {hasEvents && <View style={styles.eventDot} />}
+          </ThemedText>
+          {hasEvents && <View style={[styles.eventDot, { backgroundColor: theme.primary }]} />}
         </TouchableOpacity>
       );
     }
@@ -224,8 +224,10 @@ export default function CalendarScreen() {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading events...</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText variant="body" color="secondary" style={styles.loadingText}>
+            Loading events...
+          </ThemedText>
         </View>
       );
     }
@@ -233,13 +235,17 @@ export default function CalendarScreen() {
     if (error) {
       return (
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>Error: {error}</Text>
+          <ThemedText variant="body" color="error" style={styles.errorText}>
+            Error: {error}
+          </ThemedText>
           <TouchableOpacity 
-            style={styles.refreshButton}
+            style={[styles.refreshButton, { backgroundColor: theme.primary }]}
             onPress={handleRefresh}
           >
-            <RefreshCw size={16} color={Colors.white} />
-            <Text style={styles.refreshButtonText}>Retry</Text>
+            <RefreshCw size={16} color={theme.white} strokeWidth={isDarkMode ? 2.5 : 2} />
+            <ThemedText variant="button" color="inverted" style={styles.refreshButtonText}>
+              Retry
+            </ThemedText>
           </TouchableOpacity>
         </View>
       );
@@ -250,13 +256,17 @@ export default function CalendarScreen() {
     if (selectedEvents.length === 0) {
       return (
         <View style={styles.noEventsContainer}>
-          <Text style={styles.noEventsText}>No events scheduled for this day</Text>
+          <ThemedText variant="body" color="secondary" style={styles.noEventsText}>
+            No events scheduled for this day
+          </ThemedText>
           <TouchableOpacity 
-            style={styles.addEventButton}
+            style={[styles.addEventButton, { backgroundColor: theme.primary }]}
             onPress={handleAddEvent}
           >
-            <Plus size={16} color={Colors.white} />
-            <Text style={styles.addEventButtonText}>Add Event</Text>
+            <Plus size={16} color={theme.white} strokeWidth={isDarkMode ? 2.5 : 2} />
+            <ThemedText variant="button" color="inverted" style={styles.addEventButtonText}>
+              Add Event
+            </ThemedText>
           </TouchableOpacity>
         </View>
       );
@@ -280,11 +290,13 @@ export default function CalendarScreen() {
         
         {hasMoreEvents && (
           <TouchableOpacity 
-            style={styles.showMoreButton}
+            style={[styles.showMoreButton, { backgroundColor: theme.primaryLight }]}
             onPress={() => setVisibleEvents(prev => prev + 5)}
           >
-            <Text style={styles.showMoreButtonText}>Show More</Text>
-            <ChevronDown size={16} color={Colors.primary} />
+            <ThemedText variant="button" color="accent" style={styles.showMoreButtonText}>
+              Show More
+            </ThemedText>
+            <ChevronDown size={16} color={theme.primary} strokeWidth={isDarkMode ? 2.5 : 2} />
           </TouchableOpacity>
         )}
       </>
@@ -292,17 +304,21 @@ export default function CalendarScreen() {
   };
   
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomStatusBar style="dark" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
       
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Calendar</Text>
+        <ThemedText variant="h1" weight="bold" style={styles.headerTitle}>
+          Calendar
+        </ThemedText>
         <TouchableOpacity 
-          style={styles.newEventButton}
+          style={[styles.newEventButton, { backgroundColor: theme.primary }]}
           onPress={handleAddEvent}
         >
-          <Plus size={18} color={Colors.white} />
-          <Text style={styles.newEventButtonText}>New Event</Text>
+          <Plus size={18} color={theme.white} strokeWidth={isDarkMode ? 2.5 : 2} />
+          <ThemedText variant="button" color="inverted" style={styles.newEventButtonText}>
+            New Event
+          </ThemedText>
         </TouchableOpacity>
       </View>
       
@@ -313,43 +329,59 @@ export default function CalendarScreen() {
       >
         <View style={styles.calendarContainer}>
           <View style={styles.calendarHeader}>
-            <Text style={styles.currentMonth}>{formatMonth(currentMonth)}</Text>
+            <ThemedText variant="h3" weight="semibold" style={styles.currentMonth}>
+              {formatMonth(currentMonth)}
+            </ThemedText>
             
             <View style={styles.navigationButtons}>
               <TouchableOpacity 
-                style={styles.todayButton}
+                style={[styles.todayButton, { borderColor: theme.border }]}
                 onPress={goToToday}
               >
-                <Text style={styles.todayButtonText}>Today</Text>
+                <ThemedText variant="bodySmall" weight="medium" style={styles.todayButtonText}>
+                  Today
+                </ThemedText>
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.navButton}
+                style={[styles.navButton, { borderColor: theme.border }]}
                 onPress={goToPreviousMonth}
               >
-                <ChevronLeft size={20} color={Colors.text} />
+                <ChevronLeft size={20} color={theme.text} strokeWidth={isDarkMode ? 2.5 : 2} />
               </TouchableOpacity>
               
               <TouchableOpacity 
-                style={styles.navButton}
+                style={[styles.navButton, { borderColor: theme.border }]}
                 onPress={goToNextMonth}
               >
-                <ChevronRight size={20} color={Colors.text} />
+                <ChevronRight size={20} color={theme.text} strokeWidth={isDarkMode ? 2.5 : 2} />
               </TouchableOpacity>
             </View>
           </View>
           
-          <View style={styles.calendarCard}>
+          <View style={[styles.calendarCard, { 
+            backgroundColor: theme.cardBackground,
+            shadowColor: isDarkMode ? '#000' : '#000',
+            shadowOpacity: isDarkMode ? 0.3 : 0.05,
+            elevation: isDarkMode ? 4 : 2,
+          }]}>
             {renderCalendarGrid()}
           </View>
           
-          <View style={styles.eventsSection}>
+          <View style={[styles.eventsSection, { 
+            backgroundColor: theme.cardBackground,
+            shadowColor: isDarkMode ? '#000' : '#000',
+            shadowOpacity: isDarkMode ? 0.3 : 0.05,
+            elevation: isDarkMode ? 4 : 2,
+          }]}>
             <View style={styles.eventsHeader}>
-              <Text style={styles.selectedDateText}>
+              <ThemedText variant="h4" weight="semibold" style={styles.selectedDateText}>
                 {selectedDate ? formatDayHeader(selectedDate) : formatDayHeader(today)}
-              </Text>
-              <View style={styles.calendarBadge}>
-                <Text style={styles.calendarBadgeText}>Events</Text>
+              </ThemedText>
+              <View style={[styles.calendarBadge, { backgroundColor: theme.primaryLight }]}>
+                <ThemedText variant="caption" weight="medium" color="accent" style={styles.calendarBadgeText}>
+                  Events
+                </ThemedText>
               </View>
             </View>
             
@@ -366,7 +398,6 @@ export default function CalendarScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -378,20 +409,16 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: Colors.text,
   },
   newEventButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 100,
     gap: 6,
   },
   newEventButtonText: {
-    color: Colors.white,
     fontWeight: '500',
     fontSize: 14,
   },
@@ -413,8 +440,6 @@ const styles = StyleSheet.create({
   },
   currentMonth: {
     fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
   },
   navigationButtons: {
     flexDirection: 'row',
@@ -426,11 +451,9 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
     marginRight: 4,
   },
   todayButtonText: {
-    color: Colors.text,
     fontWeight: '500',
     fontSize: 13,
   },
@@ -439,19 +462,14 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: Colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   calendarCard: {
-    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 12,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
     marginBottom: 20,
   },
   calendarGrid: {
@@ -466,8 +484,6 @@ const styles = StyleSheet.create({
   },
   weekdayText: {
     fontSize: 13,
-    fontWeight: '600',
-    color: Colors.textSecondary,
   },
   dayCell: {
     width: '14.28%',
@@ -478,24 +494,19 @@ const styles = StyleSheet.create({
   },
   dayText: {
     fontSize: 14,
-    color: Colors.text,
     textAlign: 'center',
   },
   todayCell: {
-    backgroundColor: Colors.primaryLight,
     borderRadius: 20,
   },
   todayText: {
     fontWeight: '600',
-    color: Colors.primary,
   },
   selectedCell: {
-    backgroundColor: Colors.primary,
     borderRadius: 20,
     zIndex: 1,
   },
   selectedText: {
-    color: Colors.white,
     fontWeight: '600',
   },
   eventDot: {
@@ -504,17 +515,12 @@ const styles = StyleSheet.create({
     width: 4,
     height: 4,
     borderRadius: 2,
-    backgroundColor: Colors.primary,
   },
   eventsSection: {
-    backgroundColor: Colors.white,
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
   },
   eventsHeader: {
     flexDirection: 'row',
@@ -524,25 +530,19 @@ const styles = StyleSheet.create({
   },
   selectedDateText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
   },
   calendarBadge: {
-    backgroundColor: Colors.primaryLight,
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 100,
   },
   calendarBadgeText: {
-    color: Colors.primary,
     fontSize: 12,
-    fontWeight: '500',
   },
   eventsList: {
     gap: 12,
   },
   eventCard: {
-    backgroundColor: Colors.background,
     borderRadius: 8,
     overflow: 'hidden',
     marginBottom: 12,
@@ -579,18 +579,15 @@ const styles = StyleSheet.create({
   eventTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.text,
     flex: 1,
     marginRight: 8,
   },
   eventDuration: {
-    backgroundColor: Colors.primaryLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 100,
   },
   eventDurationText: {
-    color: Colors.primary,
     fontSize: 12,
     fontWeight: '500',
   },
@@ -602,12 +599,10 @@ const styles = StyleSheet.create({
   },
   eventDetailText: {
     fontSize: 14,
-    color: Colors.textSecondary,
     flex: 1,
   },
   eventDescription: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginTop: 10,
     lineHeight: 20,
   },
@@ -619,20 +614,17 @@ const styles = StyleSheet.create({
   },
   noEventsText: {
     fontSize: 14,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   addEventButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 100,
     gap: 6,
   },
   addEventButtonText: {
-    color: Colors.white,
     fontWeight: '500',
     fontSize: 14,
   },
@@ -644,7 +636,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: Colors.textSecondary,
     marginTop: 8,
   },
   errorContainer: {
@@ -655,20 +646,17 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: Colors.error || '#e53935',
     textAlign: 'center',
   },
   refreshButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 100,
     gap: 6,
   },
   refreshButtonText: {
-    color: Colors.white,
     fontWeight: '500',
     fontSize: 14,
   },
@@ -678,12 +666,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 12,
     marginTop: 8,
-    backgroundColor: Colors.primaryLight,
     borderRadius: 8,
     gap: 6,
   },
   showMoreButtonText: {
-    color: Colors.primary,
     fontWeight: '500',
     fontSize: 14,
   },
@@ -705,7 +691,6 @@ const styles = StyleSheet.create({
     margin: 8,
   },
   recurringBadgeText: {
-    color: Colors.white,
     fontSize: 12,
     fontWeight: '500',
   },

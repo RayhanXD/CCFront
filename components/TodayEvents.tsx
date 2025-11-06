@@ -6,8 +6,8 @@ import Colors from '@/constants/colors';
 import { useTheme } from '@/contexts/theme-context';
 import { TodayEvent } from '@/types/events';
 import AnimatedCard from './AnimatedCard';
-import { useEventsStore } from '@/store/events-store';
 import EventCard from './EventCard';
+import { useTodayEvents } from '@/hooks/useApiData';
 
 // Combined event type to handle both TodayEvent and CalendarEvent
 type DisplayEvent = {
@@ -31,30 +31,36 @@ interface TodayEventsProps {
   maxEvents?: number;
 }
 
-const TodayEvents = ({ events: propEvents, onSeeAllPress, maxEvents = 5 }: TodayEventsProps) => {
+// Component that fetches real data from API
+const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents = 5 }: TodayEventsProps) => {
   const router = useRouter();
-  const { 
-    todayEvents: storeEvents, 
-    isLoading: storeLoading, 
-    error: storeError,
-    isUsingFallbackData,
-    fetchTodayEvents,
-    checkAndUpdateEvents,
-    retryFetch
-  } = useEventsStore();
-  const { theme, isDarkMode } = useTheme();
+  const { theme } = useTheme();
   
-  // Local state for component-specific loading and errors
-  const [isLocalLoading, setIsLocalLoading] = useState(false);
-  const [localError, setLocalError] = useState<string | null>(null);
+  // Use API data hook to fetch real events
+  const { data: apiData, loading: isLoading, error, refetch } = useTodayEvents();
+  
+  // Use prop events if provided, otherwise use API data
+  const events = propEvents || (apiData?.events || []);
+  const isUsingFallbackData = !!error;
+  
+  // Refresh function that actually works
+  const retryFetch = async () => {
+    await refetch();
+  };
   
   // Helper function to check if a date is today
   const isToday = (dateString: string): boolean => {
-    const date = new Date(dateString);
-    const today = new Date();
-    return date.getDate() === today.getDate() &&
-           date.getMonth() === today.getMonth() &&
-           date.getFullYear() === today.getFullYear();
+    if (!dateString) return false;
+    try {
+      // Handle ISO date strings (YYYY-MM-DD or full ISO)
+      const dateStr = dateString.split('T')[0]; // Get just the date part
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      return dateStr === todayStr;
+    } catch (error) {
+      console.error('Error checking if date is today:', error);
+      return false;
+    }
   };
   
   // Helper function to parse time string to Date object
@@ -111,53 +117,17 @@ const TodayEvents = ({ events: propEvents, onSeeAllPress, maxEvents = 5 }: Today
     });
   };
   
-  // Combine store events with any prop events, filter and sort them
-  const unsortedEvents = propEvents || storeEvents;
-  const events = filterAndSortEvents(unsortedEvents);
-  const isLoading = propEvents ? isLocalLoading : storeLoading;
-  const error = propEvents ? localError : storeError;
+  // Filter and sort the prop events only
+  const filteredEvents = filterAndSortEvents(events);
   
   const handleRefresh = async () => {
-    if (propEvents) {
-      // If events are provided as props, we can't refresh
-      return;
-    }
-    
-    setIsLocalLoading(true);
-    try {
-      // Use retryFetch instead of fetchTodayEvents for better error handling
-      await retryFetch();
-      setLocalError(null); // Clear any local errors on success
-    } catch (error) {
-      setLocalError(error instanceof Error ? error.message : 'Failed to refresh events');
-    } finally {
-      setIsLocalLoading(false);
-    }
+    // Refresh disabled - component only displays prop events
+    console.log('Refresh disabled - component only displays prop events');
   };
   
-  useEffect(() => {
-    // If events are provided as props, use those
-    if (propEvents && propEvents.length > 0) {
-      return;
-    }
-    
-    // Check if we need to update today's events
-    checkAndUpdateEvents();
-  }, [propEvents]);
-  
-  // Add an effect to check for updates when the component is focused
-  useEffect(() => {
-    // This would ideally use a focus listener from navigation
-    // For now, we'll just check on mount
-    checkAndUpdateEvents();
-    
-    // Set up an interval to check for date changes (every hour)
-    const intervalId = setInterval(() => {
-      checkAndUpdateEvents();
-    }, 60 * 60 * 1000); // Check every hour
-    
-    return () => clearInterval(intervalId);
-  }, []);
+  // COMPLETELY DISABLED automatic data fetching to prevent infinite loops
+  // Components will only display data that is explicitly provided via props
+  // or manually triggered by user actions
 
   const handleEventPress = (id: string) => {
     router.push(`/event/${id}`);
@@ -229,7 +199,7 @@ const TodayEvents = ({ events: propEvents, onSeeAllPress, maxEvents = 5 }: Today
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : events.length === 0 ? (
+      ) : filteredEvents.length === 0 ? (
         <View style={styles.noEventsContainer}>
           <Text style={styles.noEventsText}>No events scheduled for today</Text>
           <TouchableOpacity 
@@ -246,11 +216,11 @@ const TodayEvents = ({ events: propEvents, onSeeAllPress, maxEvents = 5 }: Today
           contentContainerStyle={styles.scrollContent}
         >
           {/* Show limited number of events */}
-          {(propEvents || events)
+          {filteredEvents
             .slice(0, maxEvents)
-            .map((event) => (
+            .map((event, index) => (
               <AnimatedCard
-                key={event.id}
+                key={event.id || `event-${index}`}
                 style={styles.eventCard}
               >
                 <EventCard 
@@ -265,7 +235,10 @@ const TodayEvents = ({ events: propEvents, onSeeAllPress, maxEvents = 5 }: Today
       )}
     </View>
   );
-};
+});
+
+// Set display name for debugging
+TodayEvents.displayName = 'TodayEvents';
 
 const styles = StyleSheet.create({
   container: {
@@ -407,7 +380,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontSize: 14,
     fontWeight: '500',
-    height: 36,
   },
   eventDetails: {
     marginBottom: 12,

@@ -7,6 +7,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AnimatedCard from '@/components/AnimatedCard';
 import InsightButton from '@/components/InsightButton';
 import { useUserStore } from '@/store/user-store';
+import { useTheme } from '@/contexts/theme-context';
 
 interface ScholarshipCardProps {
   scholarship: Scholarship;
@@ -15,6 +16,7 @@ interface ScholarshipCardProps {
 
 export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) => {
   const { userProfile } = useUserStore();
+  const { theme, isDarkMode } = useTheme();
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -38,11 +40,22 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
 
   return (
     <AnimatedCard
-      style={styles.container}
+      style={[
+        styles.container, 
+        { 
+          backgroundColor: theme.cardBackground,
+          shadowColor: isDarkMode ? '#000' : '#000',
+          shadowOpacity: isDarkMode ? 0.3 : 0.05,
+          elevation: isDarkMode ? 4 : 2,
+        }
+      ]}
       onPress={() => onPress(scholarship.id)}
     >
       <LinearGradient
-        colors={[Colors.primaryLight, Colors.background]}
+        colors={isDarkMode ? 
+          [theme.primaryDark, theme.background] : 
+          [theme.primaryLight, theme.background]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -55,36 +68,55 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
           itemId={scholarship.id}
         />
         
-        <View style={styles.matchBadge}>
+        <View style={[styles.matchBadge, { backgroundColor: theme.matchBadge }]}>
           <Text style={styles.matchText}>{scholarship.matchPercentage}%</Text>
         </View>
         
         <View style={styles.amountContainer}>
-          <Text style={styles.amount}>{formatCurrency(scholarship.amount)}</Text>
+          <Text style={[styles.amount, { color: theme.text }]}>
+            {formatCurrency(scholarship.amount)}
+          </Text>
           {scholarship.renewable && (
-            <Text style={styles.renewable}>Renewable</Text>
+            <Text style={[styles.renewable, { color: theme.primary }]}>
+              Renewable
+            </Text>
           )}
         </View>
       </LinearGradient>
       
       <View style={styles.contentContainer}>
-        <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">{scholarship.name}</Text>
+        <Text 
+          style={[styles.title, { color: theme.text }]} 
+          numberOfLines={2} 
+          ellipsizeMode="tail"
+        >
+          {scholarship.name}
+        </Text>
         
         <View style={styles.detailsContainer}>
           <View style={styles.detail}>
-            <Award size={14} color={Colors.primary} />
-            <Text style={styles.detailText} numberOfLines={1} ellipsizeMode="tail">
+            <Award size={14} color={theme.primary} />
+            <Text 
+              style={[styles.detailText, { color: theme.textSecondary }]} 
+              numberOfLines={1} 
+              ellipsizeMode="tail"
+            >
               {scholarship.type.charAt(0).toUpperCase() + scholarship.type.slice(1)}
             </Text>
           </View>
           
           <View style={styles.detail}>
-            <Calendar size={14} color={isUrgent ? Colors.primary : Colors.textSecondary} />
+            <Calendar 
+              size={14} 
+              color={isUrgent ? theme.primary : theme.textSecondary} 
+              strokeWidth={isDarkMode ? 2.5 : 2}
+            />
             <Text 
               style={[
                 styles.detailText, 
-                isUrgent && styles.urgentText,
-                isPast && styles.pastText
+                { color: theme.textSecondary },
+                isUrgent && [styles.urgentText, { color: theme.primary }],
+                isPast && [styles.pastText, { color: theme.textMuted }]
               ]} 
               numberOfLines={1}
               ellipsizeMode="tail"
@@ -100,14 +132,10 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.white,
     borderRadius: 12,
     overflow: 'hidden',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 2,
     height: 200,
   },
   headerGradient: {
@@ -119,13 +147,12 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: Colors.primary,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 100,
   },
   matchText: {
-    color: Colors.white,
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '600',
   },
@@ -136,11 +163,9 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#1a1a1a',
   },
   renewable: {
     fontSize: 10,
-    color: Colors.primary,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -152,7 +177,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1a1a1a',
     marginBottom: 8,
     lineHeight: 20,
     minHeight: 40,
@@ -167,15 +191,12 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 12,
-    color: '#666666',
     flex: 1,
   },
   urgentText: {
-    color: Colors.primary,
     fontWeight: '500',
   },
   pastText: {
-    color: '#999999',
     fontStyle: 'italic',
   },
 });

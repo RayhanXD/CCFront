@@ -16,7 +16,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface InsightButtonProps {
   itemType: 'organization' | 'scholarship' | 'event';
-  itemName: string;
+  itemName?: string;
   matchPercentage: number;
   userProfile: any;
   itemId?: string;
@@ -32,7 +32,9 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
   const opacityAnim = useRef(new Animated.Value(1)).current;
   
   const getStorageKey = () => {
-    return `insight_clicked_${itemType}_${itemId || itemName.replace(/\s+/g, '_')}`;
+    // Use itemId if available, otherwise use itemName (with fallback), or fallback to a default key
+    const identifier = itemId || (itemName ? itemName.replace(/\s+/g, '_') : 'unknown');
+    return `insight_clicked_${itemType}_${identifier}`;
   };
   
   useEffect(() => {
@@ -195,7 +197,7 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
             </View>
             
             <View style={styles.modalBody}>
-              <Text style={styles.itemName}>{itemName}</Text>
+              <Text style={styles.itemName}>{itemName || 'Item'}</Text>
               
               <View style={styles.matchPercentageContainer}>
                 <Text style={styles.matchPercentage}>{matchPercentage}% Match</Text>

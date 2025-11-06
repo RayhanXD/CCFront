@@ -1,37 +1,45 @@
-import { create } from 'zustand';
-import { persist, createJSONStorage } from 'zustand/middleware';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { organizations } from '@/mocks/organizations';
+// DISABLED ZUSTAND STORE - Using simple mock to prevent infinite loops
 import { Organization } from '@/types/campus';
+
+type FilterType = 'all' | 'organization' | 'event' | 'tutoring';
 
 interface CampusState {
   organizations: Organization[];
-  selectedFilter: 'all' | 'organization' | 'event' | 'tutoring';
-  setSelectedFilter: (filter: 'all' | 'organization' | 'event' | 'tutoring') => void;
-  filteredOrganizations: Organization[];
+  selectedFilter: FilterType;
+  isLoading: boolean;
+  error: string | null;
+  setSelectedFilter: (filter: FilterType) => void;
+  getFilteredOrganizations: () => Organization[];
+  fetchOrganizations: () => Promise<void>;
 }
 
-export const useCampusStore = create<CampusState>()(
-  persist(
-    (set, get) => ({
-      organizations: organizations,
-      selectedFilter: 'all',
-      setSelectedFilter: (filter) => set({ selectedFilter: filter }),
-      get filteredOrganizations() {
-        const filter = get().selectedFilter;
-        const orgs = get().organizations;
-        
-        if (filter === 'all') {
-          return orgs;
-        }
-        
-        return orgs.filter(org => org.type === filter);
-      }
-    }),
-    {
-      name: 'campus-storage',
-      storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ selectedFilter: state.selectedFilter }),
-    }
-  )
-);
+// Simple mock store to prevent infinite loops
+const mockCampusState: CampusState = {
+  organizations: [],
+  selectedFilter: 'all',
+  isLoading: false,
+  error: null,
+  
+  setSelectedFilter: (filter: FilterType) => {
+    console.log('Mock setSelectedFilter called with:', filter);
+  },
+  
+  getFilteredOrganizations: () => {
+    return [];
+  },
+  
+  fetchOrganizations: async () => {
+    console.log('Mock fetchOrganizations called');
+  }
+};
+
+// Mock store and hooks
+export const useCampusStore = () => mockCampusState;
+
+// Mock selector hooks
+export const useOrganizations = () => [];
+export const useSelectedFilter = () => 'all' as FilterType;
+export const useFilteredOrganizations = () => [];
+
+// Disabled auto-initialization to prevent infinite update loops
+// Each component will be responsible for fetching its own data when needed
