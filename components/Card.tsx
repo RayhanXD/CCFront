@@ -10,7 +10,6 @@ import {
 } from 'react-native';
 import { useTheme } from '@/contexts/theme-context';
 import Haptics from 'expo-haptics';
-import { createSpringAnimation } from '@/utils/animation';
 
 export type CardVariant = 'elevated' | 'outlined' | 'filled';
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';

@@ -30,9 +30,16 @@ import { useToast } from '@/contexts/toast-context';
 export default function ScholarshipDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { scholarships } = useScholarshipStore();
+  const { scholarships, isLoading, fetchScholarships } = useScholarshipStore();
   const { showSuccess, showInfo } = useDialog();
   const { showToast } = useToast();
+  
+  // Fetch scholarships if not loaded
+  React.useEffect(() => {
+    if (scholarships.length === 0 && !isLoading) {
+      fetchScholarships();
+    }
+  }, [scholarships.length, isLoading, fetchScholarships]);
   
   // Find the scholarship by ID
   const scholarship = scholarships.find(schol => schol.id === id);
@@ -98,6 +105,28 @@ export default function ScholarshipDetailsScreen() {
     });
   };
   
+  // Show loading state while fetching
+  if (isLoading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ChevronLeft size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Scholarship Details</Text>
+          <View style={styles.placeholder} />
+        </View>
+        
+        <View style={styles.notFoundContainer}>
+          <Text style={styles.notFoundText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   if (!scholarship) {
     return (
       <SafeAreaView style={styles.container}>
@@ -216,7 +245,7 @@ export default function ScholarshipDetailsScreen() {
               <Tag size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
                 <Text style={styles.infoLabel}>Type: </Text>
-                {scholarship.type.charAt(0).toUpperCase() + scholarship.type.slice(1)}
+                {scholarship.category}
               </Text>
             </View>
             

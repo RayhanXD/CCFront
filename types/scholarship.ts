@@ -6,7 +6,7 @@ export interface Scholarship {
   deadline: string; // ISO date string
   description: string;
   matchPercentage: number;
-  type: 'merit' | 'need' | 'research' | 'international';
+  category: string; // API categories like "No Essay Scholarships", "High to Low Award", etc.
   renewable: boolean;
   tags: string[];
 }

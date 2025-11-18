@@ -1,30 +1,53 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { ChevronLeft, ChevronRight, Plus, RefreshCw, ChevronDown, Calendar as CalendarIcon } from 'lucide-react-native';
 import { router } from 'expo-router';
 import Colors from '@/constants/colors';
-import { useCalendarEvents } from '@/hooks/useApiData';
+import { useCalendar, useCalendarRange } from '@/hooks/useApiData';
 import { CalendarEvent } from '@/types/calendar';
 import EventCard from '@/components/EventCard';
 import { useTheme } from '@/contexts/theme-context';
 import ThemedText from '@/components/ThemedText';
+import { useUserStore } from '@/store/user-store';
 
 const { width } = Dimensions.get('window');
 const isSmallScreen = width < 375;
 
 export default function CalendarScreen() {
-  // Use API data hook to fetch real calendar events
-  const { data: calendarData, loading: isLoading, error, refetch } = useCalendarEvents();
-  const events = calendarData?.events || [];
+  const { userProfile } = useUserStore();
+  const userEmail = userProfile?.email || '';
   
   const { theme, isDarkMode } = useTheme();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [visibleEvents, setVisibleEvents] = useState(3); // Number of events to show initially
   const [selectedDate, setSelectedDate] = useState(new Date());
   
+  // Use API data hook to fetch real calendar events with 3-month pagination
+  const { data: calendarData, loading: isLoading, error, refetch } = useCalendar(userEmail, currentMonth);
+  const events = Array.isArray(calendarData?.events) ? calendarData.events : [];
+  const hasMoreEvents = calendarData?.hasMore || false;
+  
   // Get current date info
   const today = new Date();
+  
+  // Debug logging (commented out to prevent text rendering issues)
+  // console.log('📅 Calendar Debug:', {
+  //   userEmail,
+  //   calendarData,
+  //   events: events.length,
+  //   hasMoreEvents,
+  //   isLoading,
+  //   error,
+  //   firstEvent: events[0] ? {
+  //     title: String(events[0].title || 'No title'),
+  //     date: String(events[0].date || 'No date')
+  //   } : null,
+  //   selectedDate: selectedDate?.toDateString(),
+  //   today: today.toDateString(),
+  //   currentMonth: currentMonth.toDateString()
+  // });
   
   // Format date for display
   const formatMonth = (date: Date) => {
@@ -48,69 +71,161 @@ export default function CalendarScreen() {
   
   // Navigate to previous month
   const goToPreviousMonth = () => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(newMonth.getMonth() - 1);
-    setCurrentMonth(newMonth);
+    try {
+      const newMonth = new Date(currentMonth);
+      newMonth.setMonth(newMonth.getMonth() - 1);
+      
+      // Validate the new date
+      if (isNaN(newMonth.getTime())) {
+        console.error('Invalid date created in goToPreviousMonth');
+        return;
+      }
+      
+      setCurrentMonth(newMonth);
+      // Reset selected date to first day of new month to avoid invalid selections
+      setSelectedDate(new Date(newMonth.getFullYear(), newMonth.getMonth(), 1));
+    } catch (error) {
+      console.error('Error in goToPreviousMonth:', error);
+    }
   };
   
   // Navigate to next month
   const goToNextMonth = () => {
-    const newMonth = new Date(currentMonth);
-    newMonth.setMonth(newMonth.getMonth() + 1);
-    setCurrentMonth(newMonth);
+    try {
+      const newMonth = new Date(currentMonth);
+      newMonth.setMonth(newMonth.getMonth() + 1);
+      
+      // Validate the new date
+      if (isNaN(newMonth.getTime())) {
+        console.error('Invalid date created in goToNextMonth');
+        return;
+      }
+      
+      setCurrentMonth(newMonth);
+      // Reset selected date to first day of new month to avoid invalid selections
+      setSelectedDate(new Date(newMonth.getFullYear(), newMonth.getMonth(), 1));
+    } catch (error) {
+      console.error('Error in goToNextMonth:', error);
+    }
   };
   
   // Go to today
   const goToToday = () => {
-    setCurrentMonth(new Date());
-    setSelectedDate(new Date());
+    try {
+      const today = new Date();
+      setCurrentMonth(today);
+      setSelectedDate(today);
+    } catch (error) {
+      console.error('Error in goToToday:', error);
+    }
   };
   
   // Handle day selection
   const handleDaySelect = (day: number) => {
-    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    setSelectedDate(newDate);
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      
+      // Validate the day is within the month
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      if (day < 1 || day > daysInMonth) {
+        console.warn(`Invalid day selected: ${day} for month ${month + 1}/${year}`);
+        return;
+      }
+      
+      const newDate = new Date(year, month, day);
+      
+      // Validate the created date
+      if (isNaN(newDate.getTime())) {
+        console.warn(`Invalid date created: ${year}-${month + 1}-${day}`);
+        return;
+      }
+      
+      setSelectedDate(newDate);
+    } catch (error) {
+      console.error('Error in handleDaySelect:', error, 'day:', day);
+    }
   };
   
   // Get events for selected date and sort them
   const getEventsForSelectedDate = () => {
-    if (!selectedDate) return [];
+    // console.log('🗓️ getEventsForSelectedDate called:', {
+    //   selectedDate,
+    //   totalEvents: events.length,
+    //   eventsData: events.slice(0, 2) // Show first 2 events for debugging
+    // });
+    
+    if (!selectedDate) {
+      // console.log('❌ No selectedDate, returning empty array');
+      return [];
+    }
     
     // Filter events for the selected date
     const filteredEvents = events.filter(event => {
-      const eventDate = new Date(event.date);
-      return (
-        eventDate.getDate() === selectedDate.getDate() &&
-        eventDate.getMonth() === selectedDate.getMonth() &&
-        eventDate.getFullYear() === selectedDate.getFullYear()
-      );
+      try {
+        if (!event || !event.date) return false;
+        
+        const eventDate = new Date(event.date);
+        
+        // Check if the date is valid
+        if (isNaN(eventDate.getTime())) {
+          console.warn('Invalid event date:', event.date, 'for event:', event.title);
+          return false;
+        }
+        
+        const matches = (
+          eventDate.getDate() === selectedDate.getDate() &&
+          eventDate.getMonth() === selectedDate.getMonth() &&
+          eventDate.getFullYear() === selectedDate.getFullYear()
+        );
+        
+        return matches;
+      } catch (error) {
+        console.error('Error filtering event:', error, 'event:', event);
+        return false;
+      }
     });
+    
+    // console.log('🔍 Filtered events for selected date:', filteredEvents.length);
     
     // Remove duplicate events (same title, time, and location)
     const uniqueEvents: CalendarEvent[] = [];
     const eventKeys = new Set<string>();
     
     filteredEvents.forEach(event => {
-      // Create a unique key for each event based on title, time, and location
-      const eventKey = `${event.title}-${event.time}-${event.location}`;
-      
-      // Only add the event if we haven't seen this key before
-      if (!eventKeys.has(eventKey)) {
-        eventKeys.add(eventKey);
-        uniqueEvents.push(event);
+      try {
+        if (!event) return;
+        
+        // Create a unique key for each event based on title, time, and location
+        const eventKey = `${String(event.title || '')}-${String(event.time || '')}-${String(event.location || '')}`;
+        
+        // Only add the event if we haven't seen this key before
+        if (!eventKeys.has(eventKey)) {
+          eventKeys.add(eventKey);
+          uniqueEvents.push(event);
+        }
+      } catch (error) {
+        console.error('Error processing event for deduplication:', error, 'event:', event);
       }
     });
     
     // Sort events: today's events first, recurring events last
     return uniqueEvents.sort((a, b) => {
-      // If one is recurring and the other isn't, put recurring at the bottom
-      if (a.isRecurring && !b.isRecurring) return 1;
-      if (!a.isRecurring && b.isRecurring) return -1;
-      
-      // If both are of the same type (recurring or not), sort by time
-      const timeA = a.time.toLowerCase();
-      const timeB = b.time.toLowerCase();
-      return timeA.localeCompare(timeB);
+      try {
+        if (!a || !b) return 0;
+        
+        // If one is recurring and the other isn't, put recurring at the bottom
+        if (a.isRecurring && !b.isRecurring) return 1;
+        if (!a.isRecurring && b.isRecurring) return -1;
+        
+        // If both are of the same type (recurring or not), sort by time
+        const timeA = String(a.time || '').toLowerCase();
+        const timeB = String(b.time || '').toLowerCase();
+        return timeA.localeCompare(timeB);
+      } catch (error) {
+        console.error('Error sorting events:', error, 'events:', a, b);
+        return 0;
+      }
     });
   };
 
@@ -119,16 +234,26 @@ export default function CalendarScreen() {
   };
   
   const handleRefresh = () => {
-    // Get the first and last day of the current month for filtering
-    const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-    const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-    
-    // Format dates as YYYY-MM-DD
-    const start_date = firstDay.toISOString().split('T')[0];
-    const end_date = lastDay.toISOString().split('T')[0];
-    
-    // Fetch events for the current month
-    refetch();
+    try {
+      // Get the first and last day of the current month for filtering
+      const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+      const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
+      
+      // Validate the dates
+      if (isNaN(firstDay.getTime()) || isNaN(lastDay.getTime())) {
+        console.error('Invalid dates created in handleRefresh');
+        return;
+      }
+      
+      // Format dates as YYYY-MM-DD
+      const start_date = firstDay.toISOString().split('T')[0];
+      const end_date = lastDay.toISOString().split('T')[0];
+      
+      // Fetch events for the current month
+      refetch();
+    } catch (error) {
+      console.error('Error in handleRefresh:', error);
+    }
   };
   
   // Fetch events when the month changes
@@ -138,10 +263,18 @@ export default function CalendarScreen() {
   
   // Render calendar grid
   const renderCalendarGrid = () => {
-    const year = currentMonth.getFullYear();
-    const month = currentMonth.getMonth();
-    const daysInMonth = getDaysInMonth(year, month);
-    const firstDayOfMonth = getFirstDayOfMonth(year, month);
+    try {
+      const year = currentMonth.getFullYear();
+      const month = currentMonth.getMonth();
+      
+      // Validate year and month
+      if (isNaN(year) || isNaN(month) || month < 0 || month > 11) {
+        console.error('Invalid year or month in renderCalendarGrid:', year, month);
+        return <View style={styles.calendarGrid}><ThemedText>Error loading calendar</ThemedText></View>;
+      }
+      
+      const daysInMonth = getDaysInMonth(year, month);
+      const firstDayOfMonth = getFirstDayOfMonth(year, month);
     
     const days = [];
     const weekdays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -183,12 +316,24 @@ export default function CalendarScreen() {
       
       // Check if day has events
       const hasEvents = events.some(event => {
-        const eventDate = new Date(event.date);
-        return (
-          eventDate.getDate() === day &&
-          eventDate.getMonth() === month &&
-          eventDate.getFullYear() === year
-        );
+        try {
+          if (!event || !event.date) return false;
+          const eventDate = new Date(event.date);
+          
+          // Check if the date is valid
+          if (isNaN(eventDate.getTime())) {
+            return false;
+          }
+          
+          return (
+            eventDate.getDate() === day &&
+            eventDate.getMonth() === month &&
+            eventDate.getFullYear() === year
+          );
+        } catch (error) {
+          console.error('Error checking hasEvents for day:', day, 'event:', event, 'error:', error);
+          return false;
+        }
       });
       
       days.push(
@@ -209,7 +354,7 @@ export default function CalendarScreen() {
               isSelected && [styles.selectedText, { color: theme.white }],
             ]}
           >
-            {day}
+            {String(day)}
           </ThemedText>
           {hasEvents && <View style={[styles.eventDot, { backgroundColor: theme.primary }]} />}
         </TouchableOpacity>
@@ -217,10 +362,15 @@ export default function CalendarScreen() {
     }
     
     return <View style={styles.calendarGrid}>{days}</View>;
+    } catch (error) {
+      console.error('Error in renderCalendarGrid:', error);
+      return <View style={styles.calendarGrid}><ThemedText>Error loading calendar</ThemedText></View>;
+    }
   };
   
   // Render selected day events
   const renderSelectedDayEvents = () => {
+    try {
     if (isLoading) {
       return (
         <View style={styles.loadingContainer}>
@@ -236,7 +386,7 @@ export default function CalendarScreen() {
       return (
         <View style={styles.errorContainer}>
           <ThemedText variant="body" color="error" style={styles.errorText}>
-            Error: {error}
+            Error: {String(error || 'Unknown error')}
           </ThemedText>
           <TouchableOpacity 
             style={[styles.refreshButton, { backgroundColor: theme.primary }]}
@@ -278,9 +428,9 @@ export default function CalendarScreen() {
     
     return (
       <>
-        {eventsToShow.map(event => (
+        {eventsToShow.map((event, index) => (
           <EventCard
-            key={event.id}
+            key={String(event.id || `event-${index}`)}
             event={event}
             variant="calendar"
             showLearnMore={false}
@@ -301,6 +451,16 @@ export default function CalendarScreen() {
         )}
       </>
     );
+    } catch (error) {
+      console.error('Error in renderSelectedDayEvents:', error);
+      return (
+        <View style={styles.errorContainer}>
+          <ThemedText variant="body" color="error">
+            Error loading events
+          </ThemedText>
+        </View>
+      );
+    }
   };
   
   return (
@@ -330,7 +490,7 @@ export default function CalendarScreen() {
         <View style={styles.calendarContainer}>
           <View style={styles.calendarHeader}>
             <ThemedText variant="h3" weight="semibold" style={styles.currentMonth}>
-              {formatMonth(currentMonth)}
+              {String(formatMonth(currentMonth))}
             </ThemedText>
             
             <View style={styles.navigationButtons}>
@@ -376,7 +536,7 @@ export default function CalendarScreen() {
           }]}>
             <View style={styles.eventsHeader}>
               <ThemedText variant="h4" weight="semibold" style={styles.selectedDateText}>
-                {selectedDate ? formatDayHeader(selectedDate) : formatDayHeader(today)}
+                {String(selectedDate ? formatDayHeader(selectedDate) : formatDayHeader(today))}
               </ThemedText>
               <View style={[styles.calendarBadge, { backgroundColor: theme.primaryLight }]}>
                 <ThemedText variant="caption" weight="medium" color="accent" style={styles.calendarBadgeText}>

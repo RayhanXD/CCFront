@@ -1,30 +1,41 @@
-import React, { memo } from 'react';
+import React from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { useTheme } from '@/contexts/theme-context';
 import ThemedText from './ThemedText';
 
-const filters = [
-  { id: 'all', label: 'All' },
-  { id: 'merit', label: 'Merit-Based' },
-  { id: 'need', label: 'Need-Based' },
-  { id: 'research', label: 'Research' },
-  { id: 'international', label: 'International' },
-];
-
-// Use React.memo to prevent unnecessary re-renders
-const ScholarshipFilterTabs = memo(function ScholarshipFilterTabs() {
-  const { selectedFilter, setSelectedFilter } = useScholarshipStore();
+// Component will re-render when store state changes
+function ScholarshipFilterTabs() {
+  const { selectedFilter, setSelectedFilter, getAvailableFilters, availableCategories } = useScholarshipStore();
+  const filters = getAvailableFilters();
   const { theme, isDarkMode } = useTheme();
+
+  console.log('📚 ScholarshipFilterTabs render:', {
+    availableCategories,
+    filters,
+    selectedFilter,
+    filtersLength: filters.length
+  });
+
+  if (filters.length <= 1) {
+    console.log('📚 Only "All" filter available, no categories to show');
+  }
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false} 
-        contentContainerStyle={styles.scrollContent}
-      >
-        {filters.map((filter) => {
+      {filters.length === 0 ? (
+        <View style={styles.noFiltersContainer}>
+          <ThemedText variant="bodySmall" color="secondary">
+            No filters available
+          </ThemedText>
+        </View>
+      ) : (
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false} 
+          contentContainerStyle={styles.scrollContent}
+        >
+          {filters.map((filter) => {
           const isActive = selectedFilter === filter.id;
           return (
             <TouchableOpacity
@@ -54,11 +65,12 @@ const ScholarshipFilterTabs = memo(function ScholarshipFilterTabs() {
               </ThemedText>
             </TouchableOpacity>
           );
-        })}
-      </ScrollView>
+          })}
+        </ScrollView>
+      )}
     </View>
   );
-});
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -74,6 +86,10 @@ const styles = StyleSheet.create({
     borderRadius: 100,
     borderWidth: 1,
     marginRight: 8,
+  },
+  noFiltersContainer: {
+    paddingVertical: 8,
+    alignItems: 'center',
   },
 });
 

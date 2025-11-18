@@ -12,6 +12,18 @@ export default function ProfileScreen() {
   const { userProfile, signOutFirebase, savedOrganizations } = useUserStore();
   const { theme, isDarkMode } = useTheme();
   
+  // If profile is not loaded yet, show a message
+  // This should rarely happen since layout loads it, but it's a safety net
+  if (!userProfile) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text style={{ color: theme.textSecondary }}>Loading profile...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+  
   // Create a stable reference to upcoming events to avoid infinite loops
   // Using a simple variable instead of useMemo to avoid dependency tracking issues
   const upcomingEvents = userProfile?.upcomingEvents || [];

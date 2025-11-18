@@ -197,10 +197,10 @@ const InsightButton = ({ itemType, itemName, matchPercentage, userProfile, itemI
             </View>
             
             <View style={styles.modalBody}>
-              <Text style={styles.itemName}>{itemName || 'Item'}</Text>
+              <Text style={styles.itemName}>{String(itemName || 'Item')}</Text>
               
               <View style={styles.matchPercentageContainer}>
-                <Text style={styles.matchPercentage}>{matchPercentage}% Match</Text>
+                <Text style={styles.matchPercentage}>{String(matchPercentage)}% Match</Text>
               </View>
               
               <View style={styles.insightSection}>

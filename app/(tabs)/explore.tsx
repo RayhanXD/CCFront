@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
   View, 
   StyleSheet, 
@@ -12,51 +12,192 @@ import { Search, Shuffle, X } from 'lucide-react-native';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
-import { useOrganizations } from '@/hooks/useApiData';
+import { useCalendar, useTodayEvents } from '@/hooks/useApiData';
 import OrganizationCard from '@/components/OrganizationCard';
-import { Organization } from '@/types/campus';
+import EventCard from '@/components/EventCard';
 import BackToTopButton from '@/components/BackToTopButton';
 import { useTheme } from '@/contexts/theme-context';
 import ThemedText from '@/components/ThemedText';
+import { Organization, Event } from '@/lib/api';
+import { organizations as mockOrganizations } from '@/mocks/organizations';
+import { useUserStore } from '@/store/user-store';
+
+// Define unified item type for explore page
+type ExploreItem = (Organization & { itemType: 'organization' }) | (Event & { itemType: 'event' });
+
+// Map organization data to new API Organization model
+const mapOrganizationToApi = (org: any, index?: number): Organization => {
+  // Create a more stable but unique ID
+  const baseId = org.id || org._id || org.organization_id || org.Title;
+  const uniqueId = baseId ? `${baseId}-${index || 0}` : `org-${Date.now()}-${Math.random()}`;
+  
+  return {
+    id: uniqueId,
+    title: org.Title || org.title || org.name || org.organization_name || org.club_name || 'Untitled Organization',
+    category: org.Category || org.category || org.type || org.club_type || 'General',
+    missionPurposeDescription: org['Mission, Purpose, and Organization Description'] || org.missionPurposeDescription || org.description || org.mission || org.purpose || org.about || 'No description available',
+    presidentFullName: org["President's Full Name"] || org.presidentFullName || org.president?.name || org.president || org.leader || org.contact_person || 'TBD',
+    contactEmail: org['Contact Information Email'] || org.contactEmail || org.email || org.contact_email || org.president_email || 'contact@organization.edu',
+    picture: org.Picture || org.picture || org.imageUrl || org.image || org.logo || org.photo || 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+    major: org.Majors || org.major || org.field || org.department || 'General Studies',
+    specificMajors: org['Specific Majors'] ? (typeof org['Specific Majors'] === 'string' ? 
+      (org['Specific Majors'].startsWith('[') ? 
+        (() => { try { return JSON.parse(org['Specific Majors']); } catch { return [org['Specific Majors']]; } })() : 
+        [org['Specific Majors']]) : 
+      org['Specific Majors']) : 
+      (org.specificMajors || org.majors || org.fields || org.benefits || ['General']),
+    
+    // Legacy fields for backward compatibility
+    name: org.name || org.title,
+    description: org.description || org.missionPurposeDescription,
+    url: org.url || org.website || org.web_url,
+    imageUrl: org.imageUrl || org.image || org.picture,
+    matchPercentage: org.matchPercentage || Math.floor(Math.random() * 40) + 60,
+    president: org.president || (org.presidentFullName ? { name: org.presidentFullName, role: 'President' } : undefined),
+    type: org.type || org.category || 'organization',
+    meetingTime: org.meetingTime || org.meeting_time || 'TBD',
+    location: org.location || org.meeting_location || 'TBD',
+    memberCount: org.memberCount || org.member_count || org.members,
+    meetingSchedule: org.meetingSchedule || org.schedule,
+    email: org.email || org.contactEmail,
+    website: org.website || org.url,
+    benefits: org.benefits || org.specificMajors,
+    events: org.events
+  };
+};
 
 export default React.memo(function ExploreScreen() {
-  // Use API hook to fetch organizations data
-  const { data: orgsData, loading: orgsLoading, error: orgsError } = useOrganizations();
-  const organizations = orgsData?.organizations || [];
+  const { userProfile } = useUserStore();
+  const userEmail = userProfile?.email || 'thomastito88@gmail.com'; // fallback email
+  
+  // Use API hooks to fetch calendar events and today events data
+  const { data: calendarData, loading: calendarLoading, error: calendarError } = useCalendar(userEmail);
+  const { data: eventsData, loading: eventsLoading, error: eventsError } = useTodayEvents();
+  
+  // Process calendar events as organizations (since we're using calendar endpoint)
+  const apiCalendarEvents = calendarData?.events || [];
+  const organizations: Organization[] = React.useMemo(() => {
+    if (apiCalendarEvents.length > 0) {
+      // Transform calendar events to match the Organization interface for display
+      const transformed = apiCalendarEvents.map((event: any, index: number) => ({
+        id: `calendar-${event.id || event.title || event.name || `event-${index}`}`,
+        title: event.title || event.name || 'Untitled Event',
+        category: event.category || 'Event',
+        missionPurposeDescription: event.description || 'No description available',
+        presidentFullName: event.organizer || 'TBD',
+        contactEmail: event.contact_email || 'contact@event.edu',
+        picture: event.image || event.img || 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+        major: event.location || 'General',
+        specificMajors: event.tags || ['General'],
+        // Legacy fields for backward compatibility
+        name: event.title || event.name,
+        description: event.description,
+        url: event.url,
+        imageUrl: event.image || event.img,
+        matchPercentage: Math.floor(Math.random() * 40) + 60,
+        type: 'event',
+        meetingTime: event.time || 'TBD',
+        location: event.location || 'TBD',
+        email: event.contact_email,
+        website: event.url,
+        benefits: event.tags || ['General'],
+        events: []
+      }));
+      
+      return transformed;
+    }
+    // Fallback to mock data if API returns empty, map to API Organization type
+    return mockOrganizations.map((org: any, index: number) => mapOrganizationToApi(org, index));
+  }, [apiCalendarEvents]);
+
+  // Process events data
+  const apiEvents = eventsData?.events || [];
+  const events: Event[] = React.useMemo(() => {
+    return apiEvents;
+  }, [apiEvents]);
+
+  // Combine organizations and events into unified explore items
+  const exploreItems: ExploreItem[] = React.useMemo(() => {
+    const orgItems: ExploreItem[] = organizations.map(org => ({ ...org, itemType: 'organization' as const }));
+    const eventItems: ExploreItem[] = events.map(event => ({ ...event, itemType: 'event' as const }));
+    return [...orgItems, ...eventItems];
+  }, [organizations, events]);
+  
   const [searchQuery, setSearchQuery] = useState('');
-  const [resources, setResources] = useState<Organization[]>(organizations);
   // Use useRef for values that shouldn't trigger re-renders
   const scrollY = useRef(new Animated.Value(0)).current;
-  const flatListRef = useRef<FlatList>(null);
+  const flatListRef = useRef<FlatList<ExploreItem>>(null);
   const router = useRouter();
   const { theme, isDarkMode } = useTheme();
+  
+  // Memoized filtered resources for better performance
+  const resources = useMemo(() => {
+    if (searchQuery.trim() === '') {
+      return exploreItems;
+    }
+    
+    const query = searchQuery.toLowerCase().trim();
+    return exploreItems.filter(item => {
+      // Search in multiple fields for better results
+      let searchableFields: string[] = [];
+      
+      if (item.itemType === 'organization') {
+        const org = item as Organization & { itemType: 'organization' };
+        searchableFields = [
+          // New model fields
+          org.title,
+          org.category,
+          org.missionPurposeDescription,
+          org.presidentFullName,
+          org.contactEmail,
+          org.major,
+          ...(org.specificMajors || []),
+          
+          // Legacy fields for backward compatibility
+          org.name,
+          org.description,
+          org.type,
+          org.location,
+          org.meetingTime,
+          org.email,
+          org.website,
+          ...(org.benefits || []),
+          org.president?.name,
+          org.president?.role
+        ].filter((field): field is string => Boolean(field));
+      } else if (item.itemType === 'event') {
+        const event = item as Event & { itemType: 'event' };
+        searchableFields = [
+          event.title,
+          event.description,
+          event.location,
+          event.time,
+          event.date
+        ].filter((field): field is string => Boolean(field));
+      }
+      
+      return searchableFields.some(field => 
+        String(field).toLowerCase().includes(query)
+      );
+    });
+  }, [exploreItems, searchQuery]);
   
   // Debug: Log API status
   useEffect(() => {
     if (__DEV__) {
       console.log('🔍 Explore Screen API Status:', {
-        loading: orgsLoading,
-        error: orgsError,
-        count: organizations.length,
-        resourcesCount: resources.length,
+        calendarLoading,
+        eventsLoading,
+        calendarError,
+        eventsError,
+        organizationsCount: organizations.length,
+        eventsCount: events.length,
+        totalItemsCount: exploreItems.length,
+        filteredCount: resources.length,
         searchQuery: searchQuery || 'none'
       });
     }
-  }, [orgsLoading, orgsError, organizations.length, resources.length, searchQuery]);
-  
-  // Update resources when organizations data or search query changes
-  useEffect(() => {
-    if (searchQuery.trim() === '') {
-      setResources(organizations);
-    } else {
-      const filtered = organizations.filter(org => 
-        org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        org.type.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-      setResources(filtered);
-    }
-  }, [organizations, searchQuery]);
+  }, [calendarLoading, eventsLoading, calendarError, eventsError, organizations.length, events.length, exploreItems.length, resources.length, searchQuery]);
   
   // Memoize the search function - just update query, useEffect handles filtering
   const handleSearch = React.useCallback((text: string) => {
@@ -66,18 +207,35 @@ export default React.memo(function ExploreScreen() {
   // Clear search
   const clearSearch = () => {
     setSearchQuery('');
-    setResources(organizations);
   };
   
-  // Randomize resources
+  // Randomize resources - we'll need to manage this differently since resources is now computed
+  const [shuffleSeed, setShuffleSeed] = useState(0);
   const randomizeResources = () => {
-    const shuffled = [...resources].sort(() => Math.random() - 0.5);
-    setResources(shuffled);
+    setShuffleSeed(prev => prev + 1);
   };
+  
+  // Apply shuffle to resources if shuffle seed has changed
+  const shuffledResources = useMemo(() => {
+    if (shuffleSeed === 0) return resources;
+    return [...resources].sort(() => Math.random() - 0.5);
+  }, [resources, shuffleSeed]);
   
   // Handle card press
-  const handleCardPress = (id: string) => {
-    router.push(`/organization/${id}`);
+  const handleCardPress = (id: string, itemType: 'organization' | 'event') => {
+    if (itemType === 'organization') {
+      // Check if this is a calendar event disguised as organization
+      if (id.startsWith('calendar-')) {
+        // Extract the original event ID and navigate to event details
+        const eventId = id.replace('calendar-', '');
+        router.push(`/event/${eventId}`);
+      } else {
+        // Regular organization, go to calendar
+        router.push(`/calendar`);
+      }
+    } else {
+      router.push(`/event/${id}`);
+    }
   };
   
   // Scroll to top
@@ -85,13 +243,22 @@ export default React.memo(function ExploreScreen() {
     flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
   
-  // Render item
-  const renderItem = ({ item }: { item: Organization }) => (
+  // Render item - handle both organizations and events
+  const renderItem = ({ item }: { item: ExploreItem }) => (
     <View style={styles.cardWrapper}>
-      <OrganizationCard 
-        organization={item} 
-        onPress={handleCardPress} 
-      />
+      {item.itemType === 'organization' ? (
+        <OrganizationCard 
+          organization={item as Organization} 
+          onPress={(id) => handleCardPress(id, 'organization')} 
+        />
+      ) : (
+        <EventCard 
+          event={item as Event} 
+          variant="vertical"
+          showLearnMore={false}
+          showRelevanceScore={false}
+        />
+      )}
     </View>
   );
   
@@ -142,30 +309,30 @@ export default React.memo(function ExploreScreen() {
       <View style={styles.resultsContainer}>
         <View style={styles.resultsHeader}>
           <ThemedText variant="bodySmall" weight="medium" style={styles.resultsCount}>
-            {orgsLoading ? 'Loading...' : `${resources.length} ${resources.length === 1 ? 'result' : 'results'}`}
+            {(calendarLoading || eventsLoading) ? 'Loading...' : `${resources.length} ${resources.length === 1 ? 'result' : 'results'}`}
           </ThemedText>
-          {orgsError && (
+          {(calendarError || eventsError) && (
             <ThemedText variant="bodySmall" color="error" style={styles.errorText}>
-              Using mock data
+              {calendarError && eventsError ? 'Using mock data' : (calendarError ? 'Calendar: mock data' : 'Events: error')}
             </ThemedText>
           )}
-          {resources.length > 0 && !orgsLoading && (
+          {resources.length > 0 && !(calendarLoading || eventsLoading) && (
             <ThemedText variant="bodySmall" color="secondary" style={styles.randomizeHint}>
               Tap shuffle to randomize
             </ThemedText>
           )}
         </View>
         
-        {orgsLoading ? (
+        {(calendarLoading || eventsLoading) ? (
           <View style={styles.loadingContainer}>
             <ThemedText variant="body" color="secondary">
-              Loading organizations...
+              Loading calendar and events...
             </ThemedText>
           </View>
-        ) : resources.length > 0 ? (
+        ) : shuffledResources.length > 0 ? (
           <Animated.FlatList
             ref={flatListRef}
-            data={resources}
+            data={shuffledResources}
             keyExtractor={(item, index) => `${item.id}-${index}`}
             renderItem={renderItem}
             numColumns={2}

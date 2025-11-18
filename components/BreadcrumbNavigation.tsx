@@ -2,15 +2,16 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import Colors from '@/constants/colors';
 
 export interface BreadcrumbItem {
-  label: string;
-  path: string;
+  readonly label: string;
+  readonly path: Href;
 }
 
 interface BreadcrumbNavigationProps {
-  items: BreadcrumbItem[];
+  readonly items: readonly BreadcrumbItem[];
 }
 
 const BreadcrumbNavigation = ({ items }: BreadcrumbNavigationProps) => {
@@ -22,7 +23,14 @@ const BreadcrumbNavigation = ({ items }: BreadcrumbNavigationProps) => {
         <React.Fragment key={`breadcrumb-${index}`}>
           <TouchableOpacity
             style={styles.itemContainer}
-            onPress={() => router.push(item.path)}
+            onPress={() => {
+              // Handle both string and object-style routes
+              if (typeof item.path === 'string') {
+                router.push(item.path as any);
+              } else {
+                router.push(item.path);
+              }
+            }}
             disabled={index === items.length - 1}
           >
             <Text 

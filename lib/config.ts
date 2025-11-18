@@ -1,7 +1,10 @@
 // Configuration for the Campus Connect app
 export const config = {
   // API Configuration
-  API_BASE_URL: process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'http://localhost:8000',
+  API_BASE_URL: process.env.EXPO_PUBLIC_API_URL || process.env.EXPO_PUBLIC_RORK_API_BASE_URL || 'http://localhost:9999',
+  
+  // Whether to use mock data (no backend)
+  USE_MOCK_DATA: process.env.EXPO_PUBLIC_USE_MOCK_DATA === 'true' || false,
   
   // Development settings
   IS_DEVELOPMENT: __DEV__,

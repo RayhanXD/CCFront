@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import { shallow } from 'zustand/shallow';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProfile } from '@/types/user';
-import { apiService, UserProfile as ApiUserProfile } from '@/lib/api';
+import apiService, { UserProfile as ApiUserProfile } from '@/lib/api';
 import { auth } from '@/lib/firebase';
 import { 
   createUserWithEmailAndPassword, 
@@ -15,11 +15,14 @@ import {
 
 interface UserState {
   userProfile: UserProfile | null;
-  isOnboardingComplete: boolean;
   isLoading: boolean;
   error: string | null;
-  savedOrganizations?: string[];
-  setUserProfile: (profile: UserProfile) => void;
+  isOnboardingComplete: boolean;
+  savedOrganizations: string[];
+  loadingSteps: string[];
+  currentLoadingStep: number;
+  showLoadingScreen: boolean;
+  setUserProfile: (profile: UserProfile | null) => void;
   setUserInterests: (interests: string[]) => void;
   setOnboardingComplete: (complete: boolean) => void;
   updateUserProfile: (updates: Partial<UserProfile>) => void;
@@ -31,6 +34,10 @@ interface UserState {
   loadUserProfile: (email: string) => Promise<boolean>;
   updateUserProfileOnServer: (email: string, updates: Partial<ApiUserProfile>) => Promise<boolean>;
   clearError: () => void;
+  clearUserData: () => void;
+  setLoadingSteps: (steps: string[]) => void;
+  setCurrentLoadingStep: (step: number) => void;
+  setShowLoadingScreen: (show: boolean) => void;
   // Organization saving functionality
   saveOrganization?: (id: string) => void;
   unsaveOrganization?: (id: string) => void;
@@ -59,6 +66,9 @@ export const useUserStore = create<UserState>()(
       isLoading: false,
       error: null,
       savedOrganizations: [],
+      loadingSteps: [],
+      currentLoadingStep: 0,
+      showLoadingScreen: false,
       
       // Optimized setters that only update specific state slices
       setUserProfile: (profile) => set({ userProfile: profile }),
@@ -98,15 +108,15 @@ export const useUserStore = create<UserState>()(
           
           // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
-            name: profileResponse.user.name,
+            name: profileResponse.user.name || 'Unknown User',
             email: profileResponse.user.email,
-            major: profileResponse.user.major,
-            year: profileResponse.user.year,
-            interests: profileResponse.user.interests,
+            major: profileResponse.user.major || 'Computer Science',
+            year: profileResponse.user.year || 'Sophomore',
+            interests: profileResponse.user.interests || [],
             onboardingComplete: true,
-            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(profileResponse.user.name)}&background=7B5CFF&color=fff&size=200`,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(profileResponse.user.name || 'User')}&background=7B5CFF&color=fff&size=200`,
             // Map event recommendations to event history
-            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+            eventHistory: (eventsResponse.recommendations || []).map((event: any, index: number) => ({
               id: event.id || `e${index}`,
               name: event.name || event.title || `Event ${index + 1}`,
               date: event.date || new Date().toISOString().split('T')[0],
@@ -145,7 +155,7 @@ export const useUserStore = create<UserState>()(
         set({ isLoading: true, error: null });
         try {
           // Sign in to get user data
-          const response = await apiService.signIn({ email });
+          const response = await apiService.signIn({ email }) as { user: any };
           
           // Fetch event recommendations
           const eventsResponse = await apiService.getEventRecommendations(email);
@@ -161,31 +171,31 @@ export const useUserStore = create<UserState>()(
           
           // Convert API user profile to local user profile with real data
           const localProfile: UserProfile = {
-            name: response.user.name,
-            email: response.user.email,
-            major: response.user.major,
-            year: response.user.year,
-            interests: response.user.interests,
+            name: response.user?.name || 'Student Name',
+            email: response.user?.email || email,
+            major: response.user?.major || 'Computer Science',
+            year: response.user?.year || 'Sophomore',
+            interests: response.user?.interests || [],
             onboardingComplete: true,
-            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user?.name || 'Student')}&background=7B5CFF&color=fff&size=200`,
             // Map event recommendations to event history
-            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+            eventHistory: (eventsResponse.recommendations || []).map((event: any, index: number) => ({
               id: event.id || `e${index}`,
               name: event.name || event.title || `Event ${index + 1}`,
               date: event.date || new Date().toISOString().split('T')[0],
               attended: Math.random() > 0.5 // Random attendance status
             })),
             // Generate scholarships based on organizations
-            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+            scholarships: ((orgsResponse as any)?.recommendations || []).slice(0, 3).map((org: any, index: number) => ({
               id: `s${index + 1}`,
-              name: `${org.name || org.title || response.user.major} Scholarship`,
+              name: `${org.name || org.title || response.user?.major || 'General'} Scholarship`,
               amount: Math.floor(Math.random() * 5000) + 1000,
               status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
             })),
             // Add calendar events
-            calendarEvents: calendarResponse.events,
+            calendarEvents: (calendarResponse.events || []) as any,
             // Add upcoming events (today's events)
-            upcomingEvents: todayEventsResponse.events,
+            upcomingEvents: (todayEventsResponse.events || []) as any,
           };
           set({ 
             userProfile: localProfile, 
@@ -208,12 +218,18 @@ export const useUserStore = create<UserState>()(
           await createUserWithEmailAndPassword(auth, email, password);
           // Sync profile to backend
           await apiService.signUp({ ...profile, email });
+          
+          // Validate required fields
+          if (!profile.name || !profile.major || !profile.year) {
+            throw new Error('Missing required profile information');
+          }
+          
           const localProfile: UserProfile = {
             name: profile.name,
             email,
             major: profile.major,
             year: profile.year,
-            interests: profile.interests,
+            interests: profile.interests || [],
             onboardingComplete: true,
           };
           set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
@@ -225,58 +241,119 @@ export const useUserStore = create<UserState>()(
       },
 
       signInWithEmailPassword: async (email: string, password: string) => {
-        set({ isLoading: true, error: null });
+        // Set up loading screen
+        const loadingSteps = [
+          'Authenticating with Firebase...',
+          'Loading your profile...',
+          'Fetching event recommendations...',
+          'Getting organization data...',
+          'Loading calendar events...',
+          'Finalizing setup...'
+        ];
+        
+        set({ 
+          isLoading: true, 
+          error: null,
+          showLoadingScreen: true,
+          loadingSteps,
+          currentLoadingStep: 0
+        });
+        
         try {
-          // Firebase authentication
+          // Step 1: Firebase authentication
+          console.log('🔐 signInWithEmailPassword: Authenticating with Firebase...');
           await signInWithEmailAndPassword(auth, email, password);
+          set({ currentLoadingStep: 1 });
           
-          // Fetch user profile data
+          // Step 2: Fetch user profile data
+          console.log('🔄 signInWithEmailPassword: Fetching profile...');
           const response = await apiService.getProfile(email);
+          console.log('🔍 signInWithEmailPassword: Profile response:', JSON.stringify(response, null, 2));
+          set({ currentLoadingStep: 2 });
           
-          // Fetch event recommendations
+          // Validate profile data - handle both wrapped and unwrapped responses
+          const userData = response?.user || response;
+          console.log('🔍 signInWithEmailPassword: Extracted user data:', JSON.stringify(userData, null, 2));
+          
+          if (!userData || !userData.name || !userData.major || !userData.year) {
+            console.error('❌ signInWithEmailPassword: Invalid profile data received');
+            console.error('   Response:', JSON.stringify(response, null, 2));
+            console.error('   User data:', JSON.stringify(userData, null, 2));
+            console.error('   Missing required fields:', {
+              hasName: !!userData?.name,
+              hasMajor: !!userData?.major,
+              hasYear: !!userData?.year
+            });
+            throw new Error('Failed to load user profile. Required profile information is missing.');
+          }
+          
+          // Step 3: Fetch event recommendations
+          console.log('🔄 signInWithEmailPassword: Fetching events...');
           const eventsResponse = await apiService.getEventRecommendations(email);
+          set({ currentLoadingStep: 3 });
           
-          // Fetch organization recommendations for scholarship generation
+          // Step 4: Fetch organization recommendations for scholarship generation
+          console.log('🔄 signInWithEmailPassword: Fetching organizations...');
           const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          set({ currentLoadingStep: 4 });
           
-          // Fetch calendar events
+          // Step 5: Fetch calendar events
+          console.log('🔄 signInWithEmailPassword: Fetching calendar...');
           const calendarResponse = await apiService.getCalendarEvents();
-          
-          // Fetch today's events
           const todayEventsResponse = await apiService.getTodayEvents();
+          set({ currentLoadingStep: 5 });
           
           // Convert API user profile to local user profile with real data
+          // Type assertion is safe here because we validated required fields above
           const localProfile: UserProfile = {
-            name: response.user.name,
-            email: response.user.email,
-            major: response.user.major,
-            year: response.user.year,
-            interests: response.user.interests,
+            name: userData.name as string,
+            email: userData.email || email,
+            major: userData.major as string,
+            year: userData.year as string,
+            interests: userData.interests || [],
             onboardingComplete: true,
-            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name as string)}&background=7B5CFF&color=fff&size=200`,
             // Map event recommendations to event history
-            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+            eventHistory: (eventsResponse.recommendations || []).map((event: any, index: number) => ({
               id: event.id || `e${index}`,
               name: event.name || event.title || `Event ${index + 1}`,
               date: event.date || new Date().toISOString().split('T')[0],
               attended: Math.random() > 0.5 // Random attendance status
             })),
             // Generate scholarships based on organizations
-            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+            scholarships: ((orgsResponse as any)?.recommendations || []).slice(0, 3).map((org: any, index: number) => ({
               id: `s${index + 1}`,
-              name: `${org.name || org.title || response.user.major} Scholarship`,
+              name: `${org.name || org.title || userData.major || 'General'} Scholarship`,
               amount: Math.floor(Math.random() * 5000) + 1000,
               status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
             })),
             // Add calendar events
-            calendarEvents: calendarResponse.events,
+            calendarEvents: (calendarResponse.events || []),
             // Add upcoming events (today's events)
-            upcomingEvents: todayEventsResponse.events,
+            upcomingEvents: (todayEventsResponse.events || []),
           };
-          set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
+          
+          console.log('✅ signInWithEmailPassword: Profile loaded successfully:', localProfile.name);
+          
+          // Complete loading
+          set({ 
+            userProfile: localProfile, 
+            isOnboardingComplete: true, 
+            isLoading: false,
+            showLoadingScreen: false,
+            currentLoadingStep: 0,
+            loadingSteps: []
+          });
           return true;
         } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Sign in failed', isLoading: false });
+          console.error('❌ signInWithEmailPassword: Error during sign in:', error);
+          set({ 
+            error: error instanceof Error ? error.message : 'Sign in failed', 
+            isLoading: false,
+            showLoadingScreen: false,
+            currentLoadingStep: 0,
+            loadingSteps: []
+          });
           return false;
         }
       },
@@ -289,49 +366,69 @@ export const useUserStore = create<UserState>()(
       loadUserProfile: async (email: string) => {
         set({ isLoading: true, error: null });
         try {
+          console.log('🔄 loadUserProfile: Starting profile load for', email);
+          
           // Fetch user profile data
-          const response = await apiService.getProfile(email);
+          const response = await apiService.getProfile(email) as { user: any };
+          console.log('🔍 loadUserProfile API response:', response);
+          console.log('🔍 loadUserProfile response.user:', response.user);
           
           // Fetch event recommendations
           const eventsResponse = await apiService.getEventRecommendations(email);
+          console.log('🔍 loadUserProfile events:', eventsResponse);
           
           // Fetch organization recommendations for scholarship generation
           const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          console.log('🔍 loadUserProfile orgs:', orgsResponse);
           
           // Fetch calendar events
           const calendarResponse = await apiService.getCalendarEvents();
+          console.log('🔍 loadUserProfile calendar:', calendarResponse);
           
           // Fetch today's events
           const todayEventsResponse = await apiService.getTodayEvents();
+          console.log('🔍 loadUserProfile today events:', todayEventsResponse);
           
           // Convert API user profile to local user profile with real data
+          const userData = response.user?.user || response.user || {};
+          console.log('🔍 loadUserProfile userData:', userData);
+          
+          // Check if we have valid user data
+          if (!userData || !userData.name) {
+            console.warn('⚠️ loadUserProfile: No valid user data received, keeping existing profile');
+            set({ isLoading: false });
+            return false;
+          }
+          
           const localProfile: UserProfile = {
-            name: response.user.name,
-            email: response.user.email,
-            major: response.user.major,
-            year: response.user.year,
-            interests: response.user.interests,
+            name: userData.name,
+            email: userData.email || email,
+            major: userData.major || 'Computer Science',
+            year: userData.year || 'Sophomore',
+            interests: userData.interests || [],
             onboardingComplete: true,
-            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(response.user.name)}&background=7B5CFF&color=fff&size=200`,
+            photoUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name)}&background=7B5CFF&color=fff&size=200`,
             // Map event recommendations to event history
-            eventHistory: eventsResponse.recommendations.map((event, index) => ({
+            eventHistory: (eventsResponse.recommendations || []).map((event: any, index: number) => ({
               id: event.id || `e${index}`,
               name: event.name || event.title || `Event ${index + 1}`,
               date: event.date || new Date().toISOString().split('T')[0],
               attended: Math.random() > 0.5 // Random attendance status
             })),
             // Generate scholarships based on organizations
-            scholarships: orgsResponse.recommendations.slice(0, 3).map((org, index) => ({
+            scholarships: ((orgsResponse as any)?.recommendations || []).slice(0, 3).map((org: any, index: number) => ({
               id: `s${index + 1}`,
-              name: `${org.name || org.title || response.user.major} Scholarship`,
+              name: `${org.name || org.title || userData.major || 'General'} Scholarship`,
               amount: Math.floor(Math.random() * 5000) + 1000,
               status: ['pending', 'awarded', 'applied'][Math.floor(Math.random() * 3)] as any
             })),
             // Add calendar events
-            calendarEvents: calendarResponse.events,
+            calendarEvents: (calendarResponse.events || []) as any,
             // Add upcoming events (today's events)
-            upcomingEvents: todayEventsResponse.events,
+            upcomingEvents: (todayEventsResponse.events || []) as any,
           };
+          
+          console.log('✅ loadUserProfile: Profile loaded successfully:', localProfile.name);
           set({ 
             userProfile: localProfile, 
             isOnboardingComplete: true,
@@ -339,6 +436,7 @@ export const useUserStore = create<UserState>()(
           });
           return true;
         } catch (error) {
+          console.error('❌ loadUserProfile: Failed to load profile:', error);
           set({ 
             error: error instanceof Error ? error.message : 'Failed to load profile',
             isLoading: false 
@@ -381,10 +479,10 @@ export const useUserStore = create<UserState>()(
           // Update local profile with changes
           const updatedLocalProfile: UserProfile = {
             ...currentProfile,
-            name: apiProfile.name,
-            major: apiProfile.major,
-            year: apiProfile.year,
-            interests: apiProfile.interests
+            name: apiProfile.name || currentProfile.name,
+            major: apiProfile.major || currentProfile.major,
+            year: apiProfile.year || currentProfile.year,
+            interests: apiProfile.interests || currentProfile.interests
           };
           
           set({ 
@@ -402,6 +500,21 @@ export const useUserStore = create<UserState>()(
       },
       
       clearError: () => set({ error: null }),
+      
+      clearUserData: () => set({
+        userProfile: null,
+        isOnboardingComplete: false,
+        error: null,
+        savedOrganizations: [],
+        loadingSteps: [],
+        currentLoadingStep: 0,
+        showLoadingScreen: false
+      }),
+      
+      // Loading screen methods
+      setLoadingSteps: (steps: string[]) => set({ loadingSteps: steps, currentLoadingStep: 0 }),
+      setCurrentLoadingStep: (step: number) => set({ currentLoadingStep: step }),
+      setShowLoadingScreen: (show: boolean) => set({ showLoadingScreen: show }),
       
       // Organization saving functionality
       // Optimized organization saving

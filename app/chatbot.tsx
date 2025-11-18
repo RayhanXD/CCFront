@@ -3,7 +3,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   TextInput, 
   TouchableOpacity, 
   FlatList, 
@@ -14,6 +13,7 @@ import {
   Animated,
   Clipboard
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { Send, Bot, User, Info, History, Settings, Trash2, Copy, ArrowLeft } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
@@ -23,7 +23,7 @@ import { useUserStore } from '@/store/user-store';
 import { Message } from '@/types/chat';
 import Logo from '@/components/Logo';
 import { chatGPTWebSocket } from '@/lib/chatgpt-websocket';
-import { apiService, ChatGPTMessage } from '@/lib/api';
+import apiService, { ChatGPTMessage } from '@/lib/api';
 import ChatbotWrapper from '@/components/ChatbotWrapper';
 
 export default function ChatbotScreen() {
@@ -507,7 +507,7 @@ export default function ChatbotScreen() {
         <View style={[
           styles.inputContainer,
           {
-            backgroundColor: isDarkMode ? theme.cardBackground : theme.white,
+            backgroundColor: theme.background,
             borderTopColor: theme.border
           }
         ]}>
@@ -641,8 +641,6 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     padding: 8,
     borderTopWidth: 1,
-    backgroundColor: theme.background,
-    borderTopColor: theme.border,
   },
   input: {
     flex: 1,
@@ -653,9 +651,6 @@ const styles = StyleSheet.create({
     paddingRight: 40,
     fontSize: 16,
     maxHeight: 120,
-    backgroundColor: theme.inputBackground,
-    color: theme.text,
-    borderColor: theme.border,
   },
   sendButton: {
     width: 40,

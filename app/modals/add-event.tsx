@@ -11,6 +11,7 @@ import ThemedText from '@/components/ThemedText';
 export default function AddEventModal() {
   const addEvent = useCalendarStore((state) => state.addEvent);
   const isLoading = useCalendarStore((state) => state.isLoading);
+  const storeError = useCalendarStore((state) => state.error);
   const { theme, isDarkMode } = useTheme();
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -21,6 +22,7 @@ export default function AddEventModal() {
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [color, setColor] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
@@ -51,8 +53,10 @@ export default function AddEventModal() {
   ];
   
   const handleSubmit = async () => {
+    setLocalError(null);
+    
     if (!title || !location || !duration) {
-      // You could add proper validation feedback here
+      setLocalError('Please fill in all required fields (Title, Location, Duration)');
       return;
     }
 
@@ -71,12 +75,16 @@ export default function AddEventModal() {
       img: imageUrl || undefined
     };
 
+    console.log('📝 AddEventModal: Submitting event:', newEvent);
+
     try {
       await addEvent(newEvent);
+      console.log('✅ AddEventModal: Event added successfully');
       router.back();
     } catch (error) {
-      console.error('Failed to add event:', error);
-      // You could add error handling UI here
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.error('❌ AddEventModal: Failed to add event:', errorMsg);
+      setLocalError(errorMsg);
     }
   };
 
@@ -92,6 +100,14 @@ export default function AddEventModal() {
       </View>
 
       <ScrollView style={styles.form}>
+        {(localError || storeError) && (
+          <View style={[styles.errorContainer, { backgroundColor: theme.error + '20', borderColor: theme.error }]}>
+            <ThemedText variant="bodySmall" style={{ color: theme.error }}>
+              {localError || storeError}
+            </ThemedText>
+          </View>
+        )}
+        
         <View style={styles.inputGroup}>
           <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
             Title
@@ -149,7 +165,6 @@ export default function AddEventModal() {
                   value={date}
                   mode="date"
                   onChange={handleDateChange}
-                  themeVariant={isDarkMode ? 'dark' : 'light'}
                 />
               )}
             </>
@@ -203,7 +218,6 @@ export default function AddEventModal() {
                   value={date}
                   mode="time"
                   onChange={handleTimeChange}
-                  themeVariant={isDarkMode ? 'dark' : 'light'}
                 />
               )}
             </>
@@ -361,6 +375,12 @@ const styles = StyleSheet.create({
   form: {
     flex: 1,
     padding: 20,
+  },
+  errorContainer: {
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginBottom: 16,
   },
   inputGroup: {
     marginBottom: 20,

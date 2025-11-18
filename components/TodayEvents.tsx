@@ -7,7 +7,7 @@ import { useTheme } from '@/contexts/theme-context';
 import { TodayEvent } from '@/types/events';
 import AnimatedCard from './AnimatedCard';
 import EventCard from './EventCard';
-import { useTodayEvents } from '@/hooks/useApiData';
+import { useAuthenticatedTodayEvents } from '@/hooks/useAuthenticatedApi';
 
 // Combined event type to handle both TodayEvent and CalendarEvent
 type DisplayEvent = {
@@ -36,12 +36,36 @@ const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents =
   const router = useRouter();
   const { theme } = useTheme();
   
-  // Use API data hook to fetch real events
-  const { data: apiData, loading: isLoading, error, refetch } = useTodayEvents();
+  // Use today-events API (working and returning 29 events)
+  const { data: apiData, loading: isLoading, error, refetch } = useAuthenticatedTodayEvents();
   
   // Use prop events if provided, otherwise use API data
-  const events = propEvents || (apiData?.events || []);
+  const events = propEvents || ((apiData as any)?.events || []);
   const isUsingFallbackData = !!error;
+  
+  // Log API status for debugging
+  console.log('📅 TodayEvents API Status:', {
+    isLoading,
+    error: error || 'none',
+    hasApiData: !!apiData,
+    eventsCount: events.length,
+    usingPropEvents: !!propEvents,
+    isUsingFallbackData
+  });
+  
+  // Debug logging
+  console.log('📅 TodayEvents Debug:', {
+    isLoading,
+    error,
+    apiData: apiData ? 'has data' : 'no data',
+    eventsCount: events.length,
+    propEvents: propEvents ? propEvents.length : 'none',
+    firstEvent: events[0] ? {
+      id: events[0].id,
+      title: events[0].title || events[0].name,
+      date: 'date' in events[0] ? events[0].date : ('start_date' in events[0] ? events[0].start_date : 'no date')
+    } : 'none'
+  });
   
   // Refresh function that actually works
   const retryFetch = async () => {
@@ -94,35 +118,12 @@ const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents =
     }
   };
   
-  // Filter events to only include today's events and sort them by time
-  const filterAndSortEvents = (eventsToProcess: any[]) => {
-    // First filter to only include today's events
-    const todaysEvents = eventsToProcess.filter(event => {
-      const eventDate = 'date' in event ? event.date : null;
-      return eventDate ? isToday(eventDate) : false;
-    });
-    
-    // Then sort by time
-    return [...todaysEvents].sort((a, b) => {
-      // Get time from either time or startTime property
-      const timeA = 'time' in a ? a.time : ('startTime' in a ? a.startTime : '');
-      const timeB = 'time' in b ? b.time : ('startTime' in b ? b.startTime : '');
-      
-      // Parse the time strings to Date objects
-      const dateA = parseTimeString(timeA);
-      const dateB = parseTimeString(timeB);
-      
-      // Sort by time (ascending)
-      return dateA.getTime() - dateB.getTime();
-    });
-  };
-  
-  // Filter and sort the prop events only
-  const filteredEvents = filterAndSortEvents(events);
+  // Just display the events from today-events API (already filtered for today)
+  const displayEvents = events;
   
   const handleRefresh = async () => {
-    // Refresh disabled - component only displays prop events
-    console.log('Refresh disabled - component only displays prop events');
+    console.log('📅 Refreshing today\'s events...');
+    await refetch();
   };
   
   // COMPLETELY DISABLED automatic data fetching to prevent infinite loops
@@ -199,7 +200,7 @@ const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents =
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      ) : filteredEvents.length === 0 ? (
+      ) : displayEvents.length === 0 ? (
         <View style={styles.noEventsContainer}>
           <Text style={styles.noEventsText}>No events scheduled for today</Text>
           <TouchableOpacity 
@@ -216,9 +217,9 @@ const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents =
           contentContainerStyle={styles.scrollContent}
         >
           {/* Show limited number of events */}
-          {filteredEvents
+          {displayEvents
             .slice(0, maxEvents)
-            .map((event, index) => (
+            .map((event: any, index: number) => (
               <AnimatedCard
                 key={event.id || `event-${index}`}
                 style={styles.eventCard}
@@ -226,7 +227,7 @@ const TodayEvents = React.memo(({ events: propEvents, onSeeAllPress, maxEvents =
                 <EventCard 
                   event={event} 
                   variant="horizontal" 
-                  showLearnMore={true}
+                  showLearnMore={false}
                   showRelevanceScore={true}
                 />
               </AnimatedCard>
@@ -302,18 +303,12 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingLeft: 20,
     paddingRight: 8,
+    paddingTop: 12,
+    paddingBottom: 12,
   },
   eventCard: {
-    width: 280,
-    backgroundColor: Colors.white,
-    borderRadius: 12,
-    marginRight: 12,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    // Width and height are now controlled by EventCard component
+    // Keep only the container-specific styles here
   },
   loadingContainer: {
     alignItems: 'center',

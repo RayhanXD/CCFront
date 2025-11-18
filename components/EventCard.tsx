@@ -152,39 +152,39 @@ const EventCard = ({
         )}
         
         {/* Color tag */}
-        {'color' in event && event.color && (
+        {('color' in event && event.color) ? (
           <View style={[styles.eventColorTag, { backgroundColor: event.color }]} />
-        )}
+        ) : null}
         
         {/* Recurring badge */}
-        {'isRecurring' in event && event.isRecurring && (
+        {('isRecurring' in event && event.isRecurring) ? (
           <View style={styles.recurringBadge}>
             <Text style={styles.recurringBadgeText}>Recurring</Text>
           </View>
-        )}
+        ) : null}
         
         {/* Starting soon badge */}
-        {isStartingSoon() && (
+        {isStartingSoon() ? (
           <View style={styles.startingSoonBadge}>
             <Text style={styles.startingSoonText}>Starting soon</Text>
           </View>
-        )}
+        ) : null}
         
         {/* Relevance score badge */}
-        {showRelevanceScore && 'relevanceScore' in event && event.relevanceScore && (
+        {(showRelevanceScore && 'relevanceScore' in event && event.relevanceScore) ? (
           <>
             <InsightButton 
               itemType="event"
-              itemName={event.title}
-              matchPercentage={event.relevanceScore}
+              itemName={String(event.title || 'Event')}
+              matchPercentage={Number(event.relevanceScore || 0)}
               userProfile={userProfile}
-              itemId={event.id}
+              itemId={String(event.id || '')}
             />
             <View style={styles.relevanceBadge}>
-              <Text style={styles.relevanceText}>{event.relevanceScore}% Match</Text>
+              <Text style={styles.relevanceText}>{String(event.relevanceScore)}% Match</Text>
             </View>
           </>
-        )}
+        ) : null}
       </View>
       
       <View style={[
@@ -193,55 +193,57 @@ const EventCard = ({
         variant === 'calendar' ? styles.calendarContent : 
         styles.horizontalContent
       ]}>
-        <View style={styles.titleContainer}>
-          <Text 
-            style={styles.eventTitle} 
-            numberOfLines={variant === 'calendar' ? 1 : 2} 
-            ellipsizeMode="tail"
-          >
-            {event.title}
-          </Text>
-          
-          {variant === 'calendar' && 'duration' in event && event.duration && (
-            <View style={styles.durationBadge}>
-              <Text style={styles.durationText}>{event.duration} min</Text>
-            </View>
-          )}
-        </View>
-        
-        {variant !== 'calendar' && 'description' in event && event.description && (
-          <Text 
-            style={styles.eventDescription} 
-            numberOfLines={2} 
-            ellipsizeMode="tail"
-          >
-            {event.description}
-          </Text>
-        )}
-        
-        <View style={styles.eventDetails}>
-          <View style={styles.eventDetail}>
-            <Clock size={14} color={Colors.textSecondary} />
-            <Text style={styles.eventDetailText} numberOfLines={1} ellipsizeMode="tail">
-              {formatTime()}
+        <View style={styles.topContent}>
+          <View style={styles.titleContainer}>
+            <Text 
+              style={styles.eventTitle} 
+              numberOfLines={variant === 'calendar' ? 1 : 2} 
+              ellipsizeMode="tail"
+            >
+              {String(event.title || 'Untitled Event')}
             </Text>
+            
+            {(variant === 'calendar' && 'duration' in event && event.duration) ? (
+              <View style={styles.durationBadge}>
+                <Text style={styles.durationText}>{String(event.duration)} min</Text>
+              </View>
+            ) : null}
           </View>
           
-          {event.location && (
+          {(variant !== 'calendar' && 'description' in event && event.description) ? (
+            <Text 
+              style={styles.eventDescription} 
+              numberOfLines={2} 
+              ellipsizeMode="tail"
+            >
+              {String(event.description || '')}
+            </Text>
+          ) : null}
+          
+          <View style={styles.eventDetails}>
             <View style={styles.eventDetail}>
-              <MapPin size={14} color={Colors.textSecondary} />
+              <Clock size={14} color={Colors.textSecondary} />
               <Text style={styles.eventDetailText} numberOfLines={1} ellipsizeMode="tail">
-                {event.location}
+                {String(formatTime() || 'Time not specified')}
               </Text>
             </View>
-          )}
+            
+            {event.location ? (
+              <View style={styles.eventDetail}>
+                <MapPin size={14} color={Colors.textSecondary} />
+                <Text style={styles.eventDetailText} numberOfLines={1} ellipsizeMode="tail">
+                  {String(event.location || '')}
+                </Text>
+              </View>
+            ) : null}
+          </View>
         </View>
         
-        {showLearnMore && variant !== 'calendar' && (
+        {(showLearnMore && variant !== 'calendar') ? (
           <TouchableOpacity style={styles.learnMoreButton} onPress={handleEventPress}>
             <Text style={styles.learnMoreText}>Learn More</Text>
           </TouchableOpacity>
-        )}
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -261,6 +263,7 @@ const styles = StyleSheet.create({
   // Horizontal card styles (for Today's Top 5 Events)
   horizontalCard: {
     width: 280,
+    height: 240, // Fixed height for consistent sizing
     marginRight: 12,
   },
   horizontalImageContainer: {
@@ -268,6 +271,8 @@ const styles = StyleSheet.create({
   },
   horizontalContent: {
     padding: 12,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   
   // Vertical card styles (for Today's Events page)
@@ -333,7 +338,8 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     lineHeight: 18,
     marginBottom: 10,
-    height: 36,
+    height: 36, // Fixed height for 2 lines
+    overflow: 'hidden',
   },
   eventDetails: {
     marginBottom: 12,
@@ -414,6 +420,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   content: {
+    flex: 1,
+  },
+  topContent: {
     flex: 1,
   },
 });

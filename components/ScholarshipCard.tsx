@@ -31,6 +31,19 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
     const today = new Date();
     const diffTime = deadline.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Debug logging for scholarships showing 0 days
+    if (diffDays <= 0) {
+      console.log('📚 Deadline debug:', {
+        scholarshipName: scholarship.name,
+        dateString,
+        deadline: deadline.toISOString(),
+        today: today.toISOString(),
+        diffDays,
+        isValidDate: !isNaN(deadline.getTime())
+      });
+    }
+    
     return diffDays;
   };
 
@@ -74,7 +87,7 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
         
         <View style={styles.amountContainer}>
           <Text style={[styles.amount, { color: theme.text }]}>
-            {formatCurrency(scholarship.amount)}
+            {scholarship.amount > 0 ? formatCurrency(scholarship.amount) : 'N/A'}
           </Text>
           {scholarship.renewable && (
             <Text style={[styles.renewable, { color: theme.primary }]}>
@@ -101,7 +114,7 @@ export const ScholarshipCard = ({ scholarship, onPress }: ScholarshipCardProps) 
               numberOfLines={1} 
               ellipsizeMode="tail"
             >
-              {scholarship.type.charAt(0).toUpperCase() + scholarship.type.slice(1)}
+              {scholarship.category}
             </Text>
           </View>
           

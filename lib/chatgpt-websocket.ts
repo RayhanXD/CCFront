@@ -1,4 +1,4 @@
-import { apiService } from './api';
+import apiService from './api';
 import { useChatStore } from '@/store/chat-store';
 import { useUserStore } from '@/store/user-store';
 import { Message } from '@/types/chat';
@@ -96,6 +96,31 @@ class ChatGPTWebSocket {
         // Handle incoming message
         const data = event.data;
         
+        // Check if it's a ping message first to avoid logging it
+        if (typeof data === 'string') {
+          try {
+            const jsonData = JSON.parse(data);
+            if (jsonData.type === 'ping' || jsonData.type === 'pong' || jsonData.type === 'heartbeat') {
+              // Don't log ping messages, just handle them silently
+              if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                this.ws.send('pong');
+              }
+              return;
+            }
+          } catch (e) {
+            // Not JSON, continue with other checks
+          }
+          
+          // Also check for simple string ping messages
+          if (data === 'ping' || data === 'heartbeat') {
+            console.log('Received heartbeat from server');
+            if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+              this.ws.send('pong');
+            }
+            return;
+          }
+        }
+        
         console.log(`WebSocket received data: ${typeof data === 'string' ? data.substring(0, 50) + '...' : 'non-string data'}`);
         
         // Check if the message is an error message
@@ -122,16 +147,6 @@ class ChatGPTWebSocket {
         // Check if it's a "no history" message
         if (typeof data === 'string' && data.includes('no chat history')) {
           console.log('No chat history found for user');
-          return;
-        }
-        
-        // Check if it's a ping/heartbeat message
-        if (typeof data === 'string' && (data === 'ping' || data === 'heartbeat')) {
-          console.log('Received heartbeat from server');
-          // Send pong response if needed
-          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send('pong');
-          }
           return;
         }
         
@@ -218,6 +233,13 @@ class ChatGPTWebSocket {
     try {
       // Check if data is JSON (could be an error object)
       const jsonData = JSON.parse(data);
+      
+      // Check if it's a ping message and ignore it
+      if (jsonData.type === 'ping' || jsonData.type === 'pong' || jsonData.type === 'heartbeat') {
+        console.log('Received JSON ping/heartbeat from server');
+        return;
+      }
+      
       if (jsonData.error) {
         console.error('Error from WebSocket:', jsonData.error);
         // End typing state if there's an error

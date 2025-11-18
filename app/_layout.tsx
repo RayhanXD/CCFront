@@ -6,6 +6,9 @@ import React, { useEffect, useRef } from "react";
 import { Platform, AppState, View } from "react-native";
 import { ErrorBoundary } from "./error-boundary";
 import { useUserStore } from "@/store/user-store";
+import { auth } from "@/lib/firebase";
+import { onAuthStateChanged, User } from "firebase/auth";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/contexts/theme-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/contexts/theme-context";
@@ -13,6 +16,7 @@ import { LanguageProvider } from "@/contexts/language-context";
 import { DialogProvider } from "@/contexts/dialog-context";
 import { ToastProvider } from "@/contexts/toast-context";
 import CustomStatusBar from "@/components/CustomStatusBar";
+import AppWithLoading from "@/components/AppWithLoading";
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
@@ -66,22 +70,104 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const router = useRouter();
   const segments = useSegments();
-  const { isOnboardingComplete, userProfile } = useUserStore();
+  const { isOnboardingComplete, userProfile, clearUserData, loadUserProfile } = useUserStore();
   const { theme, isDarkMode } = useTheme();
+  const [isFirebaseAuthChecked, setIsFirebaseAuthChecked] = React.useState(false);
+  const [firebaseUser, setFirebaseUser] = React.useState<User | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = React.useState(false);
+
+  // Listen to Firebase auth state changes
+  React.useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log('🔐 Firebase Auth State Changed in Layout:', user ? user.email : 'No user');
+      setFirebaseUser(user);
+      
+      if (!user) {
+        // User is not authenticated, clear all cached data
+        console.log('🗑️ Clearing all cached data - user not authenticated');
+        try {
+          await AsyncStorage.multiRemove([
+            'auth_state',
+            'user_profile', 
+            'calendar_cache',
+            'events_cache',
+            'user-store-storage'
+          ]);
+          
+          // Clear user store
+          clearUserData();
+        } catch (error) {
+          console.error('Error clearing cache:', error);
+        }
+      } else if (user.email) {
+        // User is authenticated - check if profile needs loading
+        // This handles app reload with persisted auth (not fresh sign-in)
+        const currentProfile = useUserStore.getState().userProfile;
+        const needsProfile = !currentProfile || 
+                            !currentProfile.name || 
+                            currentProfile.name === 'Student Name' ||
+                            currentProfile.email !== user.email; // Email mismatch means different user
+        
+        if (needsProfile) {
+          console.log('🔄 Layout: Profile missing or invalid, loading for:', user.email);
+          setIsLoadingProfile(true);
+          try {
+            const success = await loadUserProfile(user.email);
+            if (!success) {
+              console.warn('⚠️ Layout: Failed to load profile, user may need to sign in again');
+            }
+          } catch (error) {
+            console.error('❌ Layout: Failed to load profile:', error);
+          } finally {
+            setIsLoadingProfile(false);
+          }
+        } else {
+          console.log('✅ Layout: Profile already loaded for:', user.email, '- Name:', currentProfile.name);
+        }
+      }
+      
+      setIsFirebaseAuthChecked(true);
+    });
+
+    return () => unsubscribe();
+  }, [clearUserData, loadUserProfile]);
 
   // Use a layout effect to handle auth redirects - this runs before regular effects
   React.useLayoutEffect(() => {
-    const inAuthGroup = segments[0] === "onboarding" || segments[0] === "auth";
-    const isAuthenticated = userProfile && isOnboardingComplete;
+    // Don't redirect until Firebase auth state is checked and profile loading is complete
+    if (!isFirebaseAuthChecked || isLoadingProfile) {
+      return;
+    }
 
-    if (!isAuthenticated && !inAuthGroup) {
-      // Redirect to auth if not authenticated
+    const inAuthGroup = segments[0] === "onboarding" || segments[0] === "auth";
+    const hasFirebaseUser = !!firebaseUser;
+    const hasUserProfile = !!userProfile;
+    const isFullyAuthenticated = hasFirebaseUser && hasUserProfile && isOnboardingComplete;
+
+    console.log('🔄 Auth Check:', {
+      segments: segments[0],
+      inAuthGroup,
+      hasFirebaseUser,
+      hasUserProfile,
+      isOnboardingComplete,
+      isFullyAuthenticated,
+      isLoadingProfile
+    });
+
+    if (!hasFirebaseUser && !inAuthGroup) {
+      // No Firebase user, redirect to auth
+      console.log('➡️ Redirecting to auth - no Firebase user');
       router.replace("/auth/signin");
-    } else if (isAuthenticated && inAuthGroup) {
-      // Redirect to main app if authenticated
+    } else if (hasFirebaseUser && !hasUserProfile && !inAuthGroup) {
+      // Firebase user exists but no profile, redirect to auth to complete setup
+      console.log('➡️ Redirecting to auth - Firebase user but no profile');
+      router.replace("/auth/signin");
+    } else if (isFullyAuthenticated && inAuthGroup) {
+      // Fully authenticated, redirect to main app
+      console.log('➡️ Redirecting to main app - fully authenticated');
       router.replace("/");
     }
-  }, [isOnboardingComplete, userProfile, segments]);
+  }, [isFirebaseAuthChecked, isLoadingProfile, firebaseUser, userProfile, isOnboardingComplete, segments, router]);
   
   // We're completely removing the data initialization logic from _layout.tsx
   // Each component will be responsible for fetching its own data when needed
@@ -130,7 +216,7 @@ function RootLayoutNav() {
   // isDarkMode is already declared above
 
   return (
-    <>
+    <AppWithLoading>
       <CustomStatusBar 
         style={isDarkMode ? 'light' : 'dark'} 
         backgroundColor={isDarkMode ? theme.background : 'transparent'}
@@ -147,6 +233,6 @@ function RootLayoutNav() {
       <Stack.Screen name="profile" options={{ headerShown: false }} />
       <Stack.Screen name="chatbot" options={{ headerShown: false }} />
     </Stack>
-    </>
+    </AppWithLoading>
   );
 }

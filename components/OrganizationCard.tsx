@@ -2,7 +2,7 @@ import React, { memo, useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Clock, MapPin } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { Organization } from '@/types/campus';
+import { Organization } from '@/lib/api';
 import AnimatedCard from '@/components/AnimatedCard';
 import InsightButton from '@/components/InsightButton';
 import OptimizedImage from '@/components/OptimizedImage';
@@ -30,7 +30,7 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
     >
       <View style={[styles.imageContainer, { backgroundColor: isDarkMode ? theme.primaryDark : theme.primaryLight }]}>
         <OptimizedImage
-          source={{ uri: organization.imageUrl }}
+          source={{ uri: organization.picture || organization.imageUrl || 'https://via.placeholder.com/150' }}
           style={styles.image}
           contentFit="cover"
           transition={300}
@@ -38,34 +38,38 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
         />
         <InsightButton 
           itemType="organization"
-          itemName={organization.name}
-          matchPercentage={organization.matchPercentage}
+          itemName={organization.title || organization.name || 'Organization'}
+          matchPercentage={organization.matchPercentage || 0}
           userProfile={userProfile}
           itemId={organization.id}
         />
         <View style={[styles.matchBadge, { backgroundColor: theme.matchBadge }]}>
-          <Text style={styles.matchText}>{organization.matchPercentage}%</Text>
+          <Text style={styles.matchText}>{organization.matchPercentage || 0}%</Text>
         </View>
       </View>
       
       <View style={styles.contentContainer}>
         <View style={styles.textContainer}>
           <Text style={[styles.title, { color: theme.text }]} numberOfLines={2} ellipsizeMode="tail">
-            {organization.name}
+            {organization.title || organization.name || 'Untitled Organization'}
+          </Text>
+          
+          <Text style={[styles.category, { color: theme.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
+            {organization.category}
           </Text>
           
           <View style={styles.infoContainer}>
             <View style={styles.infoRow}>
               <Clock size={12} color={isDarkMode ? theme.textSecondary : '#666666'} strokeWidth={isDarkMode ? 2.5 : 2} />
               <Text style={[styles.infoText, { color: theme.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
-                {organization.meetingTime}
+                {organization.major}
               </Text>
             </View>
             
             <View style={styles.infoRow}>
               <MapPin size={12} color={isDarkMode ? theme.textSecondary : '#666666'} strokeWidth={isDarkMode ? 2.5 : 2} />
               <Text style={[styles.infoText, { color: theme.textSecondary }]} numberOfLines={1} ellipsizeMode="tail">
-                {organization.location}
+                {organization.presidentFullName}
               </Text>
             </View>
           </View>
@@ -119,8 +123,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 15,
     fontWeight: '600',
-    marginBottom: 8,
+    marginBottom: 4,
     lineHeight: 20,
+  },
+  category: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginBottom: 8,
+    opacity: 0.8,
   },
   infoContainer: {
     flex: 1,

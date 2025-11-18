@@ -302,3 +302,5 @@ const styles = StyleSheet.create({
   },
 });
 
+// Default export for the error boundary
+export default ErrorBoundary;

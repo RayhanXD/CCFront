@@ -36,16 +36,56 @@ import {
   ChevronRight
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useCampusStore } from '@/store/campus-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { useUserStore } from '@/store/user-store';
-import { apiService } from '@/lib/api';
-import { Organization } from '@/types/organization';
+import apiService, { Organization } from '@/lib/api';
+import { useOrganizations } from '@/hooks/useApiData';
+
+// Map organization data to new API Organization model (same as explore page)
+const mapOrganizationToApi = (org: any, index?: number): Organization => {
+  // Create a more stable but unique ID
+  const baseId = org.id || org._id || org.organization_id || org.Title;
+  const uniqueId = baseId ? `${baseId}-${index || 0}` : `org-${Date.now()}-${Math.random()}`;
+  
+  return {
+    id: uniqueId,
+    title: org.Title || org.title || org.name || org.organization_name || org.club_name || 'Untitled Organization',
+    category: org.Category || org.category || org.type || org.club_type || 'General',
+    missionPurposeDescription: org['Mission, Purpose, and Organization Description'] || org.missionPurposeDescription || org.description || org.mission || org.purpose || org.about || 'No description available',
+    presidentFullName: org["President's Full Name"] || org.presidentFullName || org.president?.name || org.president || org.leader || org.contact_person || 'TBD',
+    contactEmail: org['Contact Information Email'] || org.contactEmail || org.email || org.contact_email || org.president_email || 'contact@organization.edu',
+    picture: org.Picture || org.picture || org.imageUrl || org.image || org.logo || org.photo || 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+    major: org.Majors || org.major || org.field || org.department || 'General Studies',
+    specificMajors: org['Specific Majors'] ? (typeof org['Specific Majors'] === 'string' ? 
+      (org['Specific Majors'].startsWith('[') ? 
+        (() => { try { return JSON.parse(org['Specific Majors']); } catch { return [org['Specific Majors']]; } })() : 
+        [org['Specific Majors']]) : 
+      org['Specific Majors']) : 
+      (org.specificMajors || org.majors || org.fields || org.benefits || ['General']),
+    
+    // Legacy fields for backward compatibility
+    name: org.name || org.title,
+    description: org.description || org.missionPurposeDescription,
+    url: org.url || org.website || org.web_url,
+    imageUrl: org.imageUrl || org.image || org.picture,
+    matchPercentage: org.matchPercentage || Math.floor(Math.random() * 40) + 60,
+    president: org.president || (org.presidentFullName ? { name: org.presidentFullName, role: 'President' } : undefined),
+    type: org.type || org.category || 'organization',
+    meetingTime: org.meetingTime || org.meeting_time || 'TBD',
+    location: org.location || org.meeting_location || 'TBD',
+    memberCount: org.memberCount || org.member_count || org.members,
+    meetingSchedule: org.meetingSchedule || org.schedule,
+    email: org.email || org.contactEmail,
+    website: org.website || org.url,
+    benefits: org.benefits || org.specificMajors,
+    events: org.events
+  };
+};
 
 export default function OrganizationDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { organizations, fetchOrganizations } = useCampusStore();
+  const { data: orgsData, loading: orgsLoading, error: orgsError } = useOrganizations();
   const { saveOrganization, unsaveOrganization, isOrganizationSaved } = useUserStore();
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -64,14 +104,12 @@ export default function OrganizationDetailsScreen() {
       setLoading(true);
       setError(null);
       
-      // First check local store
-      let org = organizations.find(org => org.id === id);
+      // Get organizations from API and transform them
+      const apiOrganizations = orgsData?.organizations || [];
+      const transformedOrganizations = apiOrganizations.map((org, index) => mapOrganizationToApi(org, index));
       
-      // If not found locally, try to fetch from API
-      if (!org) {
-        await fetchOrganizations(); // Refresh the organizations list
-        org = organizations.find(org => org.id === id);
-      }
+      // Find the organization by ID
+      const org = transformedOrganizations.find((org: Organization) => org.id === id);
       
       if (org) {
         setOrganization(org);
@@ -85,7 +123,7 @@ export default function OrganizationDetailsScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [id, organizations, fetchOrganizations]);
+  }, [id, orgsData]);
   
   // Initial load
   useEffect(() => {

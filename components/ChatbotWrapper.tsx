@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useChatStore } from '@/store/chat-store';
 import ChatErrorHandler from './ChatErrorHandler';
-import { apiService } from '@/lib/api';
+import apiService from '@/lib/api';
 
 interface ChatbotWrapperProps {
   children: React.ReactNode;
@@ -20,7 +20,7 @@ export default function ChatbotWrapper({ children }: ChatbotWrapperProps) {
     
     try {
       // Test the connection to the chatbot API
-      await apiService.healthCheck();
+      await apiService.getHealth();
       
       // If successful, we can try to reconnect the WebSocket
       // This assumes you have a WebSocket instance that can be accessed

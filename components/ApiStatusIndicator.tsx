@@ -9,7 +9,7 @@ import {
   Animated, 
   Easing 
 } from 'react-native';
-import { apiService } from '@/lib/api';
+import apiService from '@/lib/api';
 import { config } from '@/lib/config';
 import { RefreshCw, Wifi, WifiOff } from 'lucide-react-native';
 import Colors from '@/constants/colors';
@@ -89,7 +89,7 @@ export default function ApiStatusIndicator({
       
       // Race between the health check and the timeout
       const response = await Promise.race([
-        apiService.healthCheck(),
+        apiService.getHealth(),
         timeoutPromise
       ]) as { status: string };
       

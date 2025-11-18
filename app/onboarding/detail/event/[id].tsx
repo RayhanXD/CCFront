@@ -10,7 +10,7 @@ import {
   ScrollView, 
   StatusBar 
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { 
   ChevronLeft, 
   Calendar, 
@@ -36,10 +36,10 @@ export default function EventDetailsScreen() {
   // Check if event is saved
   const saved = event ? isEventSaved(event.id) : false;
   
-  // Breadcrumb items
-  const breadcrumbItems = [
+  // Breadcrumb items with proper Href types
+  const breadcrumbItems: readonly { label: string; path: Href }[] = [
     { label: 'Welcome', path: '/onboarding/welcome' },
-    { label: 'Event Details', path: `/onboarding/detail/event/${id}` },
+    { label: 'Event Details', path: `/onboarding/detail/event/${id}` as Href },
   ];
   
   // Handle share

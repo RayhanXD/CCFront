@@ -1,14 +1,56 @@
-import React, { useRef, useState, useEffect } from 'react';
-import { View, StyleSheet, SafeAreaView, TouchableOpacity, Animated, ScrollView, Platform } from 'react-native';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
+import { View, StyleSheet, TouchableOpacity, Animated, ScrollView, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import ApiStatusIndicator from '@/components/ApiStatusIndicator';
 import { useRouter } from 'expo-router';
-import FilterTabs from '@/components/FilterTabs';
+import DynamicFilterTabs from '@/components/DynamicFilterTabs';
 import OrganizationCard from '@/components/OrganizationCard';
 import TodayEvents from '@/components/TodayEvents';
 import { useOrganizations } from '@/hooks/useApiData';
-import { Organization } from '@/types/campus';
+import { Organization } from '@/lib/api';
 import { TodayEvent } from '@/types/events';
+
+// Map organization data to new API Organization model (same as explore page)
+const mapOrganizationToApi = (org: any, index?: number): Organization => {
+  // Create a more stable but unique ID
+  const baseId = org.id || org._id || org.organization_id || org.Title;
+  const uniqueId = baseId ? `${baseId}-${index || 0}` : `org-${Date.now()}-${Math.random()}`;
+  
+  return {
+    id: uniqueId,
+    title: org.Title || org.title || org.name || org.organization_name || org.club_name || 'Untitled Organization',
+    category: org.Category || org.category || org.type || org.club_type || 'General',
+    missionPurposeDescription: org['Mission, Purpose, and Organization Description'] || org.missionPurposeDescription || org.description || org.mission || org.purpose || org.about || 'No description available',
+    presidentFullName: org["President's Full Name"] || org.presidentFullName || org.president?.name || org.president || org.leader || org.contact_person || 'TBD',
+    contactEmail: org['Contact Information Email'] || org.contactEmail || org.email || org.contact_email || org.president_email || 'contact@organization.edu',
+    picture: org.Picture || org.picture || org.imageUrl || org.image || org.logo || org.photo || 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&q=80',
+    major: org.Majors || org.major || org.field || org.department || 'General Studies',
+    specificMajors: org['Specific Majors'] ? (typeof org['Specific Majors'] === 'string' ? 
+      (org['Specific Majors'].startsWith('[') ? 
+        (() => { try { return JSON.parse(org['Specific Majors']); } catch { return [org['Specific Majors']]; } })() : 
+        [org['Specific Majors']]) : 
+      org['Specific Majors']) : 
+      (org.specificMajors || org.majors || org.fields || org.benefits || ['General']),
+    
+    // Legacy fields for backward compatibility
+    name: org.name || org.title,
+    description: org.description || org.missionPurposeDescription,
+    url: org.url || org.website || org.web_url,
+    imageUrl: org.imageUrl || org.image || org.picture,
+    matchPercentage: org.matchPercentage || Math.floor(Math.random() * 40) + 60,
+    president: org.president || (org.presidentFullName ? { name: org.presidentFullName, role: 'President' } : undefined),
+    type: org.type || org.category || 'organization',
+    meetingTime: org.meetingTime || org.meeting_time || 'TBD',
+    location: org.location || org.meeting_location || 'TBD',
+    memberCount: org.memberCount || org.member_count || org.members,
+    meetingSchedule: org.meetingSchedule || org.schedule,
+    email: org.email || org.contactEmail,
+    website: org.website || org.url,
+    benefits: org.benefits || org.specificMajors,
+    events: org.events
+  };
+};
 import { useUserStore } from '@/store/user-store';
 import Colors from '@/constants/colors';
 import { useTheme } from '@/contexts/theme-context';
@@ -21,6 +63,8 @@ import ThemedText from '@/components/ThemedText';
 
 export default React.memo(function HomeScreen() {
   const router = useRouter();
+  const { userProfile } = useUserStore();
+  const [selectedMajors, setSelectedMajors] = useState<string[]>(['All']);
   
   // Use API data hook to fetch organizations data with retry support
   const { 
@@ -30,8 +74,34 @@ export default React.memo(function HomeScreen() {
     refetch: refetchOrganizations 
   } = useOrganizations();
   
-  const filteredOrganizations = orgsData?.organizations || [];
-  const { userProfile } = useUserStore();
+  // Transform API organizations to match the Organization interface
+  const transformedOrganizations = React.useMemo(() => {
+    const apiOrganizations = orgsData?.organizations || [];
+    return apiOrganizations.map((org, index) => mapOrganizationToApi(org, index));
+  }, [orgsData]);
+
+  // Filter organizations based on selected majors
+  const filteredOrganizations = useMemo(() => {
+    if (selectedMajors.includes('All')) {
+      return transformedOrganizations;
+    }
+    
+    return transformedOrganizations.filter(org => {
+      // Check if organization's major matches any selected major
+      const orgMajor = org.major;
+      const orgSpecificMajors = org.specificMajors || [];
+      
+      return selectedMajors.some(selectedMajor => 
+        orgMajor === selectedMajor || 
+        orgSpecificMajors.includes(selectedMajor)
+      );
+    });
+  }, [transformedOrganizations, selectedMajors]);
+
+  // Handle filter change from DynamicFilterTabs
+  const handleFilterChange = (newSelectedMajors: string[]) => {
+    setSelectedMajors(newSelectedMajors);
+  };
   
   // Debug: Log API status
   useEffect(() => {
@@ -97,12 +167,12 @@ export default React.memo(function HomeScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <CustomStatusBar />
       
-      <ApiStatusIndicator 
+      {/* <ApiStatusIndicator 
         isUsingFallbackData={!!orgsError}
         error={orgsError}
         onRetry={handleRetry}
         isLoading={orgsLoading}
-      />
+      /> */}
       {/* Network Error Banner */}
       <NetworkErrorBanner 
         isVisible={!!orgsError}
@@ -177,7 +247,10 @@ export default React.memo(function HomeScreen() {
           <ThemedText variant="h3" weight="semibold" style={styles.sectionTitle}>
             Recommended Organizations
           </ThemedText>
-          <FilterTabs />
+          <DynamicFilterTabs 
+            organizations={transformedOrganizations} 
+            onFilterChange={handleFilterChange} 
+          />
           
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           

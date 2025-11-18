@@ -1,7 +1,19 @@
-import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, FlatList, SafeAreaView, TouchableOpacity, Animated } from 'react-native';
-import CustomStatusBar from '@/components/CustomStatusBar';
+import React, { useRef, useEffect, useCallback, useMemo } from 'react';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  SafeAreaView,
+  TouchableOpacity,
+  Animated,
+  RefreshControl,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+
+import CustomStatusBar from '@/components/CustomStatusBar';
 import ScholarshipFilterTabs from '@/components/ScholarshipFilterTabs';
 import { ScholarshipCard } from '@/components/ScholarshipCard';
 import { useScholarshipStore } from '@/store/scholarship-store';
@@ -10,119 +22,205 @@ import BackToTopButton from '@/components/BackToTopButton';
 import { useDialog } from '@/contexts/dialog-context';
 import ThemedText from '@/components/ThemedText';
 
+const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
 export default React.memo(function ScholarshipsScreen() {
   const router = useRouter();
-  const { selectedFilter, setSelectedFilter } = useScholarshipStore();
-  const filteredScholarships = useScholarshipStore(state => state.getFilteredScholarships());
+  const { 
+    selectedFilter, 
+    setSelectedFilter, 
+    getFilteredScholarships, 
+    fetchScholarships,
+    refreshScholarships,
+    isLoading,
+    isRefreshing,
+    error: scholarshipError,
+    clearError,
+  } = useScholarshipStore();
+  
+  const filteredScholarships = useMemo(() => {
+    console.log('📚 useMemo triggered - recalculating filtered scholarships');
+    const scholarships = getFilteredScholarships();
+    console.log('📚 Filtered scholarships:', scholarships.length, 'items for filter:', selectedFilter);
+    console.log('📚 Loading state:', isLoading, 'Error:', scholarshipError);
+    console.log('📚 Sample filtered scholarship:', scholarships[0]?.name || 'None');
+    return scholarships;
+  }, [getFilteredScholarships, selectedFilter, isLoading, scholarshipError]);
   const { showError } = useDialog();
-  const { theme, isDarkMode } = useTheme();
-  // Use useRef for values that shouldn't trigger re-renders
+  const { theme } = useTheme();
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
-
-  // Use a ref to track if we've shown the error
   const hasShownErrorRef = useRef(false);
-  
-  // Check if there are no scholarships for the selected filter
+
+  // Fetch scholarships on mount and when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      console.log('📚 Scholarship screen focused - fetching scholarships');
+      fetchScholarships();
+    }, [fetchScholarships])
+  );
+
+  // Also fetch on initial mount
   useEffect(() => {
-    // Only show error once per filter change and only if we have no results
-    if (filteredScholarships.length === 0 && selectedFilter !== 'all' && !hasShownErrorRef.current) {
+    console.log('📚 Scholarship screen mounted - initial fetch');
+    fetchScholarships();
+  }, [fetchScholarships]);
+
+  // Handle API errors
+  useEffect(() => {
+    if (scholarshipError && !hasShownErrorRef.current) {
       hasShownErrorRef.current = true;
-      
-      // Use setTimeout to break the update cycle
-      setTimeout(() => {
+      showError({
+        title: 'Error Loading Scholarships',
+        message: scholarshipError,
+        buttonText: 'Retry',
+        buttonAction: () => {
+          clearError();
+          refreshScholarships();
+          hasShownErrorRef.current = false;
+        },
+      });
+    }
+  }, [scholarshipError, showError, refreshScholarships, clearError]);
+
+  // Handle empty state for filters
+  useEffect(() => {
+    if (
+      !isLoading &&
+      filteredScholarships.length === 0 &&
+      selectedFilter !== 'all' &&
+      !hasShownErrorRef.current &&
+      !scholarshipError
+    ) {
+      hasShownErrorRef.current = true;
+
+      const timer = setTimeout(() => {
         showError({
           title: 'No Scholarships Found',
           message: `There are no scholarships available for the ${selectedFilter} filter. Would you like to view all scholarships?`,
           buttonText: 'View All',
-          buttonAction: () => setSelectedFilter('all')
+          buttonAction: () => {
+            setSelectedFilter('all');
+            hasShownErrorRef.current = false;
+          },
         });
       }, 100);
-    } else if (filteredScholarships.length > 0 || selectedFilter === 'all') {
-      // Reset the flag when we have results or switch to 'all'
+
+      return () => clearTimeout(timer);
+    }
+
+    if (filteredScholarships.length > 0 || selectedFilter === 'all') {
       hasShownErrorRef.current = false;
     }
-  }, [selectedFilter, filteredScholarships.length]);
+  }, [filteredScholarships.length, selectedFilter, setSelectedFilter, showError, isLoading, scholarshipError]);
 
-
-  const handleCardPress = (id: string) => {
-    router.push(`/scholarship/${id}`);
-  };
-
-  const renderItem = ({ item }: { item: any }) => (
-    <View style={styles.cardWrapper}>
-      <ScholarshipCard 
-        scholarship={item} 
-        onPress={handleCardPress} 
-      />
-    </View>
+  const handleCardPress = useCallback(
+    (id: string) => {
+      router.push(`/scholarship/${id}`);
+    },
+    [router],
   );
-  
-  const scrollToTop = () => {
-    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
-  };
 
-  // Memoize the render function to prevent unnecessary re-renders
+  const renderItem = useCallback(
+    ({ item }: { item: any }) => (
+      <View style={styles.cardWrapper}>
+        <ScholarshipCard scholarship={item} onPress={handleCardPress} />
+      </View>
+    ),
+    [handleCardPress],
+  );
+
+  const onRefresh = useCallback(() => {
+    refreshScholarships();
+  }, [refreshScholarships]);
+
+  const scrollToTop = useCallback(() => {
+    flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
       <CustomStatusBar />
-      
+
       <View style={[styles.heroSection, { backgroundColor: theme.background }]}>
         <View style={styles.titleContainer}>
           <ThemedText variant="h1" weight="bold" style={styles.title}>
-            Financial <ThemedText variant="h1" weight="bold" color="accent">Opportunities</ThemedText>
+            Financial{' '}
+            <ThemedText variant="h1" weight="bold" color="accent">
+              Opportunities
+            </ThemedText>
           </ThemedText>
           <ThemedText variant="body" color="secondary" style={styles.subtitle}>
             Discover scholarships and grants that match your academic profile
           </ThemedText>
         </View>
       </View>
-      
+
       <ScholarshipFilterTabs />
-      
+
       <View style={[styles.divider, { backgroundColor: theme.border }]} />
-      
-      {filteredScholarships.length > 0 ? (
-        <Animated.FlatList
+
+      {isLoading && filteredScholarships.length === 0 ? (
+        <View style={[styles.loadingContainer, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <ThemedText variant="body" color="secondary" style={styles.loadingText}>
+            Loading scholarships...
+          </ThemedText>
+        </View>
+      ) : filteredScholarships.length > 0 ? (
+        <AnimatedFlatList
           ref={flatListRef}
           data={filteredScholarships}
           renderItem={renderItem}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item: any) => item.id}
           numColumns={2}
           contentContainerStyle={styles.gridContainer}
           columnWrapperStyle={styles.columnWrapper}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              colors={[theme.primary]}
+              tintColor={theme.primary}
+            />
+          }
           onScroll={Animated.event(
             [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-            { useNativeDriver: false }
+            { useNativeDriver: false },
           )}
         />
       ) : (
         <View style={[styles.emptyState, { backgroundColor: theme.cardBackground }]}>
           <ThemedText variant="body" color="secondary" style={styles.emptyStateText}>
-            No scholarships found for the {selectedFilter} filter.
+            {scholarshipError 
+              ? 'Unable to load scholarships. Please try again.'
+              : `No scholarships found for the ${selectedFilter} filter.`
+            }
           </ThemedText>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.emptyStateButton, { backgroundColor: theme.primary }]}
-            onPress={() => useScholarshipStore.getState().setSelectedFilter('all')}
+            onPress={() => {
+              if (scholarshipError) {
+                clearError();
+                refreshScholarships();
+              } else {
+                setSelectedFilter('all');
+              }
+            }}
           >
             <ThemedText variant="button" color="inverted" style={styles.emptyStateButtonText}>
-              View All
+              {scholarshipError ? 'Retry' : 'View All'}
             </ThemedText>
           </TouchableOpacity>
         </View>
       )}
-      
-      <BackToTopButton 
-        scrollY={scrollY} 
-        onPress={scrollToTop} 
-      />
+
+      <BackToTopButton scrollY={scrollY} onPress={scrollToTop} />
     </SafeAreaView>
   );
 });
-
-// Import Colors for backward compatibility
-import Colors from '@/constants/colors';
 
 const styles = StyleSheet.create({
   container: {
@@ -181,5 +279,16 @@ const styles = StyleSheet.create({
   },
   emptyStateButtonText: {
     fontWeight: '500',
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

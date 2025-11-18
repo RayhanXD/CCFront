@@ -1,28 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator, RefreshControl } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Calendar, RefreshCw, CalendarDays } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useTodayEvents, useCalendarEvents } from '@/hooks/useApiData';
+import { useTodayEvents, useCalendar } from '@/hooks/useApiData';
 import { CalendarEvent } from '@/types/calendar';
 import EventCard from '@/components/EventCard';
+import { useUserStore } from '@/store/user-store';
 
 export default function AllTodayEventsScreen() {
   const router = useRouter();
+  const { userProfile } = useUserStore();
+  const userEmail = userProfile?.email || '';
   
   // Use API data hook to fetch today's events
   const { data: eventsData, loading: isLoading, error, refetch } = useTodayEvents();
   
-  // Fetch future events (next 30 days)
-  const today = new Date();
-  const futureDate = new Date();
-  futureDate.setDate(today.getDate() + 30);
-  
-  const { data: futureEventsData, loading: futureLoading } = useCalendarEvents({
-    start_date: today.toISOString().split('T')[0],
-    end_date: futureDate.toISOString().split('T')[0],
-  });
+  // Fetch future events using the working POST /calendar endpoint
+  const { data: futureEventsData, loading: futureLoading } = useCalendar(userEmail);
   
   const [refreshing, setRefreshing] = useState(false);
   const [sortedEvents, setSortedEvents] = useState<CalendarEvent[]>([]);

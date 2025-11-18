@@ -9,7 +9,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-03-15',
     description: 'The Presidential Merit Scholarship is awarded to incoming freshmen who have demonstrated exceptional academic achievement and leadership potential.',
     matchPercentage: 96,
-    type: 'merit',
+    category: 'Top 25 for College Freshmen',
     renewable: true,
     tags: ['Freshman', 'Academic']
   },
@@ -21,7 +21,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-04-30',
     description: 'This grant supports undergraduate students conducting research in computer science, data science, or related fields under faculty supervision.',
     matchPercentage: 92,
-    type: 'research',
+    category: 'For all College Students',
     renewable: false,
     tags: ['CS', 'Research']
   },
@@ -33,7 +33,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-02-28',
     description: 'This scholarship is designed to support international students who demonstrate academic excellence and financial need.',
     matchPercentage: 88,
-    type: 'international',
+    category: 'For all College Students',
     renewable: true,
     tags: ['International', 'Undergraduate']
   },
@@ -45,7 +45,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-03-01',
     description: 'This grant is awarded to students who demonstrate significant financial need based on their FAFSA application.',
     matchPercentage: 94,
-    type: 'need',
+    category: 'For all College Students',
     renewable: true,
     tags: ['FAFSA', 'Need-based']
   },
@@ -57,7 +57,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-05-15',
     description: 'This scholarship supports women pursuing degrees in science, technology, engineering, and mathematics fields.',
     matchPercentage: 90,
-    type: 'merit',
+    category: 'Scholarships for Girls',
     renewable: false,
     tags: ['Women', 'STEM']
   },
@@ -69,7 +69,7 @@ export const scholarships: Scholarship[] = [
     deadline: '2024-01-15', // Past deadline
     description: 'This fellowship supports graduate students conducting innovative research in natural sciences and mathematics.',
     matchPercentage: 85,
-    type: 'research',
+    category: 'High to Low Award',
     renewable: true,
     tags: ['Graduate', 'Research']
   },
@@ -81,7 +81,7 @@ export const scholarships: Scholarship[] = [
     deadline: new Date(new Date().getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days from now
     description: 'This scholarship is awarded to first-generation college students who demonstrate academic potential and financial need.',
     matchPercentage: 93,
-    type: 'need',
+    category: 'No Essay Scholarships',
     renewable: true,
     tags: ['First-Gen', 'Undergraduate']
   }

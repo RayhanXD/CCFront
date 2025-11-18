@@ -4,7 +4,6 @@ import {
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   TouchableOpacity, 
   Image, 
   ScrollView, 
@@ -15,7 +14,8 @@ import {
   Platform,
   Dimensions
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { 
   ChevronLeft, 
   Clock, 
@@ -35,12 +35,12 @@ import {
   AlertTriangle
 } from 'lucide-react-native';
 import Colors from '@/constants/colors';
-import { useEventsStore } from '@/store/events-store';
-import { useCalendarStore } from '@/store/calendar-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { CalendarEvent } from '@/types/calendar';
 import { TodayEvent } from '@/types/events';
-import { apiService } from '@/lib/api';
+import { useTodayEvents, useCalendar } from '@/hooks/useApiData';
+import { useUserStore } from '@/store/user-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import * as Calendar from 'expo-calendar';
 import * as Sharing from 'expo-sharing';
@@ -69,13 +69,62 @@ type EventType = (CalendarEvent | TodayEvent) & {
 export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { todayEvents, saveEvent, unsaveEvent, isEventSaved } = useEventsStore();
-  const { events: calendarEvents } = useCalendarStore();
+  const { userProfile } = useUserStore();
+  const userEmail = userProfile?.email || '';
+  
+  
+  // Fetch events from API using the working endpoints
+  const { data: todayEventsData, loading: todayLoading, refetch: refetchToday } = useTodayEvents();
+  const { data: calendarEventsData, loading: calendarLoading, refetch: refetchCalendar } = useCalendar(userEmail);
+  
+  const todayEvents = todayEventsData?.events || [];
+  const calendarEvents = calendarEventsData?.events || [];
+  
   const [showFullDescription, setShowFullDescription] = useState(false);
   const [event, setEvent] = useState<CalendarEvent | TodayEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [savedEvents, setSavedEvents] = useState<string[]>([]);
+  
+  // Load saved events from AsyncStorage
+  useEffect(() => {
+    const loadSavedEvents = async () => {
+      try {
+        const saved = await AsyncStorage.getItem('saved_events');
+        if (saved) {
+          setSavedEvents(JSON.parse(saved));
+        }
+      } catch (err) {
+        console.error('Error loading saved events:', err);
+      }
+    };
+    loadSavedEvents();
+  }, []);
+  
+  const isEventSaved = (eventId: string): boolean => {
+    return savedEvents.includes(eventId);
+  };
+  
+  const saveEvent = async (eventId: string) => {
+    try {
+      const updated = [...savedEvents, eventId];
+      setSavedEvents(updated);
+      await AsyncStorage.setItem('saved_events', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Error saving event:', err);
+    }
+  };
+  
+  const unsaveEvent = async (eventId: string) => {
+    try {
+      const updated = savedEvents.filter(id => id !== eventId);
+      setSavedEvents(updated);
+      await AsyncStorage.setItem('saved_events', JSON.stringify(updated));
+    } catch (err) {
+      console.error('Error unsaving event:', err);
+    }
+  };
   
   const fetchEvent = useCallback(async () => {
     if (!id) {
@@ -88,24 +137,12 @@ export default function EventDetailsScreen() {
       setLoading(true);
       setError(null);
       
-      // First check local stores
-      let foundEvent = todayEvents.find(e => e.id === id) || 
-                      calendarEvents.find(e => e.id === id);
-      
-      // If not found locally, try to fetch from API
-      if (!foundEvent) {
-        try {
-          const response = await apiService.getEventById(id);
-          if (response) {
-            foundEvent = response as TodayEvent;
-          }
-        } catch (err) {
-          console.warn('Failed to fetch event from API:', err);
-        }
-      }
+      // Search in today's events and calendar events
+      let foundEvent = todayEvents.find((e: any) => e.id === id) || 
+                      calendarEvents.find((e: any) => e.id === id);
       
       if (foundEvent) {
-        setEvent(foundEvent);
+        setEvent(foundEvent as CalendarEvent | TodayEvent);
       } else {
         setError('Event not found');
       }
@@ -118,26 +155,41 @@ export default function EventDetailsScreen() {
     }
   }, [id, todayEvents, calendarEvents]);
   
-  // Initial load
+  // Fetch event when data is available
   useEffect(() => {
-    fetchEvent();
-  }, [fetchEvent]);
+    if (!todayLoading && !calendarLoading) {
+      fetchEvent();
+    }
+  }, [fetchEvent, todayLoading, calendarLoading]);
   
   // Handle pull to refresh
-  const onRefresh = useCallback(() => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    fetchEvent();
-  }, [fetchEvent]);
+    try {
+      await Promise.all([refetchToday(), refetchCalendar()]);
+      await fetchEvent();
+    } catch (err) {
+      console.error('Error refreshing:', err);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refetchToday, refetchCalendar, fetchEvent]);
   
   // Check if event is saved
   const saved = event ? isEventSaved(event.id) : false;
   
-  // Breadcrumb items
+  // Breadcrumb items with proper Href types
   const breadcrumbItems = [
-    { label: 'Home', path: '/' },
-    { label: 'Events', path: '/calendar' },
-    { label: event?.title || 'Event Details', path: `/event/${id}` },
-  ];
+    { label: 'Home', path: '/' as const },
+    { label: 'Events', path: '/calendar' as const },
+    { 
+      label: event?.title || 'Event Details',
+      path: { 
+        pathname: '/event/[id]',
+        params: { id }
+      } as const
+    },
+  ] as const;
   
   // Handle share
   const handleShare = () => {
@@ -153,13 +205,13 @@ export default function EventDetailsScreen() {
   };
   
   // Handle save/unsave
-  const handleSaveToggle = () => {
+  const handleSaveToggle = async () => {
     if (!event) return;
     
     if (saved) {
-      unsaveEvent(event.id);
+      await unsaveEvent(event.id);
     } else {
-      saveEvent(event.id);
+      await saveEvent(event.id);
     }
   };
   
@@ -202,7 +254,7 @@ export default function EventDetailsScreen() {
     return new Date(dateString).toLocaleDateString('en-US', options);
   };
   
-  if (loading) {
+  if (loading || todayLoading || calendarLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
@@ -239,7 +291,7 @@ export default function EventDetailsScreen() {
         </View>
         
         <View style={styles.centered}>
-          <AlertTriangle size={48} color={Colors.danger} style={styles.errorIcon} />
+          <AlertTriangle size={48} color={Colors.error} style={styles.errorIcon} />
           <Text style={styles.errorText}>{error || 'Event not found'}</Text>
           <TouchableOpacity 
             style={styles.retryButton}
@@ -273,6 +325,14 @@ export default function EventDetailsScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.primary]}
+            tintColor={Colors.primary}
+          />
+        }
       >
         <View style={styles.imageContainer}>
           {('imageUrl' in event && event.imageUrl) || ('img' in event && event.img) ? (
@@ -290,7 +350,7 @@ export default function EventDetailsScreen() {
           
           {'relevanceScore' in event && event.relevanceScore && (
             <View style={styles.matchBadge}>
-              <Text style={styles.matchText}>{event.relevanceScore}% Match</Text>
+              <Text style={styles.matchText}>{String(event.relevanceScore)}% Match</Text>
             </View>
           )}
           
@@ -302,7 +362,7 @@ export default function EventDetailsScreen() {
         </View>
         
         <View style={styles.contentContainer}>
-          <Text style={styles.title}>{event.title}</Text>
+          <Text style={styles.title}>{String(event.title || 'Untitled Event')}</Text>
           
           <View style={styles.actionsContainer}>
             <TouchableOpacity 
@@ -319,13 +379,6 @@ export default function EventDetailsScreen() {
               <Bookmark size={22} color={saved ? Colors.white : Colors.primary} />
             </TouchableOpacity>
           </View>
-          
-          {'tags' in event && event.tags && event.tags.length > 0 && (
-            <View style={styles.categoryBadge}>
-              <Tag size={14} color={Colors.primary} />
-              <Text style={styles.categoryText}>{event.tags[0]}</Text>
-            </View>
-          )}
           
           <View style={styles.infoContainer}>
             {'date' in event && event.date && (
@@ -349,7 +402,7 @@ export default function EventDetailsScreen() {
               <View style={styles.infoItem}>
                 <Clock size={16} color={Colors.textSecondary} />
                 <Text style={styles.infoText}>
-                  Duration: {event.duration} minutes
+                  Duration: {String(event.duration)} minutes
                 </Text>
               </View>
             )}
@@ -358,7 +411,7 @@ export default function EventDetailsScreen() {
               <View style={styles.infoItem}>
                 <MapPin size={16} color={Colors.textSecondary} />
                 <Text style={styles.infoText}>
-                  {event.location}
+                  {String(event.location || '')}
                 </Text>
               </View>
             ) : null}
@@ -366,7 +419,7 @@ export default function EventDetailsScreen() {
             <View style={styles.infoItem}>
               <User size={16} color={Colors.textSecondary} />
               <Text style={styles.infoText}>
-                Organized by: {'organizer' in event ? event.organizer : 'Unknown'}
+                Organized by: {'organizer' in event ? String(event.organizer || 'Unknown') : 'Unknown'}
               </Text>
             </View>
           </View>
@@ -378,7 +431,7 @@ export default function EventDetailsScreen() {
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>About This Event</Text>
                 <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
-                  {event.description}
+                  {String(event.description || '')}
                 </Text>
                 {event.description.length > 150 && (
                   <TouchableOpacity 
@@ -463,6 +516,36 @@ export default function EventDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Error state styles
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorIcon: {
+    marginBottom: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: Colors.text,
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  retryButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: Colors.white,
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  headerRight: {
+    width: 24, // Match the back button width for balance
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.background,
