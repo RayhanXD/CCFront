@@ -1,12 +1,13 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
-import { MapPin, Clock, Calendar } from 'lucide-react-native';
+import { MapPinIcon as MapPin, ClockIcon as Clock, CalendarIconComponent as Calendar } from '@/components/icons';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { CalendarEvent } from '@/types/calendar';
 import { TodayEvent } from '@/types/events';
 import InsightButton from './InsightButton';
 import { useUserStore } from '@/store/user-store';
+import { getStockPhotoByIndex, CALENDAR_IMAGE } from '@/constants/images';
 
 // Combined event type to handle both TodayEvent and CalendarEvent
 export type DisplayEvent = {
@@ -32,16 +33,21 @@ interface EventCardProps {
   variant?: 'horizontal' | 'vertical' | 'calendar';
   showLearnMore?: boolean;
   showRelevanceScore?: boolean;
+  index?: number; // For consistent stock photo selection
+  organizationImage?: string; // Organization's image to use if event has no image
 }
 
 const EventCard = ({ 
   event, 
   variant = 'horizontal', 
   showLearnMore = true,
-  showRelevanceScore = true
+  showRelevanceScore = true,
+  index = 0,
+  organizationImage
 }: EventCardProps) => {
   const router = useRouter();
   const { userProfile } = useUserStore();
+  const [imageError, setImageError] = useState(false);
   
   // Helper function to parse time string to Date object
   const parseTimeString = (timeStr: string): Date | null => {
@@ -101,22 +107,41 @@ const EventCard = ({
     return diffMinutes >= 0 && diffMinutes <= 60;
   };
   
-  // Get image URL from either imageUrl or img property
-  const getImageUrl = () => {
-    if ('imageUrl' in event && event.imageUrl) {
-      return event.imageUrl;
-    } else if ('img' in event && event.img) {
-      return event.img;
+  // Get image source with stock photo fallback
+  const imageSource = useMemo(() => {
+    // Try to get image URL from event
+    const imageUrl = ('imageUrl' in event && event.imageUrl) || 
+                     ('img' in event && event.img);
+    
+    // If we have a valid image URL and no error, use it
+    if (imageUrl && !imageError) {
+      return { uri: imageUrl };
     }
-    return null;
-  };
+    
+    // Try to get organization image from event object first (from backend)
+    const orgImage = ('organization_image' in event && event.organization_image) || organizationImage;
+    
+    // If event has no image but has organization image, use that
+    if (orgImage && !imageError) {
+      return { uri: orgImage };
+    }
+    
+    // Check if this is a personal event (user-created or saved)
+    const isPersonalEvent = 'isPersonal' in event && event.isPersonal;
+    
+    // For personal events without image, use stock photos
+    if (isPersonalEvent) {
+      return getStockPhotoByIndex(index);
+    }
+    
+    // For university events without image, use calendar.png
+    return CALENDAR_IMAGE;
+  }, [event, imageError, index, organizationImage]);
   
   // Handle event press - navigate to event detail
   const handleEventPress = () => {
     router.push(`/event/${event.id}`);
   };
-  
-  const imageUrl = getImageUrl();
   
   return (
     <TouchableOpacity
@@ -135,21 +160,12 @@ const EventCard = ({
         variant === 'calendar' ? styles.calendarImageContainer : 
         styles.horizontalImageContainer
       ]}>
-        {imageUrl ? (
-          <Image 
-            source={{ uri: imageUrl }} 
-            style={styles.eventImage}
-            resizeMode="cover"
-          />
-        ) : (
-          <View style={[
-            styles.eventImage, 
-            styles.eventImagePlaceholder, 
-            'color' in event && event.color ? {backgroundColor: event.color} : null
-          ]}>
-            <Calendar size={variant === 'vertical' ? 24 : 32} color={Colors.primary} />
-          </View>
-        )}
+        <Image 
+          source={imageSource}
+          style={styles.eventImage}
+          resizeMode="cover"
+          onError={() => setImageError(true)}
+        />
         
         {/* Color tag */}
         {('color' in event && event.color) ? (

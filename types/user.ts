@@ -23,6 +23,7 @@ export interface ScholarshipItem {
 
 export interface UserProfile {
   name: string;
+  surname?: string;
   email?: string;
   major: string;
   year: string;

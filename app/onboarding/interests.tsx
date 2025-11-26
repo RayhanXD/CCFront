@@ -12,7 +12,7 @@ import {
   Keyboard
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, Search, Plus, X } from 'lucide-react-native';
+import { ArrowRightIcon as ArrowRight, SearchIcon as Search, PlusIcon as Plus, XIcon as X } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useUserStore } from '@/store/user-store';
 import AnimatedCard from '@/components/AnimatedCard';

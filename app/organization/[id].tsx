@@ -18,23 +18,23 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Building2, 
-  User, 
-  Calendar, 
-  MapPin, 
-  Share2, 
-  ExternalLink,
-  Mail,
-  Globe,
-  Bookmark,
-  Tag,
-  Users,
-  Info,
-  AlertTriangle,
-  CalendarPlus,
-  ChevronRight
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  Building2Icon as Building2, 
+  UserIcon as User, 
+  CalendarIconComponent as Calendar, 
+  MapPinIcon as MapPin, 
+  Share2Icon as Share2, 
+  ExternalLinkIcon as ExternalLink,
+  MailIcon as Mail,
+  GlobeIcon as Globe,
+  BookmarkIcon as Bookmark,
+  TagIcon as Tag,
+  UsersIcon as Users,
+  InfoIcon as Info,
+  AlertTriangleIcon as AlertTriangle,
+  CalendarPlusIcon as CalendarPlus,
+  ChevronRightIcon as ChevronRight
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { useUserStore } from '@/store/user-store';

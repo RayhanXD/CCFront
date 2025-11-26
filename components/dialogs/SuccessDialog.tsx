@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react-native';
+import { CheckCircleIcon as CheckCircle } from '@/components/icons';
 import Dialog from './Dialog';
 import Colors from '@/constants/colors';
 

@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import apiService from '@/lib/api';
 import { config } from '@/lib/config';
-import { RefreshCw, Wifi, WifiOff } from 'lucide-react-native';
+import { RefreshCwIcon as RefreshCw, WifiIcon as Wifi, WifiOffIcon as WifiOff } from '@/components/icons';
 import Colors from '@/constants/colors';
 
 const AnimatedRefresh = Animated.createAnimatedComponent(RefreshCw);

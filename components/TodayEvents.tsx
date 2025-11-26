@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Calendar, ChevronRight, RefreshCw, AlertTriangle } from 'lucide-react-native';
+import { CalendarIconComponent as Calendar, ChevronRightIcon as ChevronRight, RefreshCwIcon as RefreshCw, AlertTriangleIcon as AlertTriangle } from '@/components/icons';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useTheme } from '@/contexts/theme-context';

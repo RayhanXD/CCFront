@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
-import { Send, Bot, User, Info, History, Settings, Trash2, Copy, ArrowLeft } from 'lucide-react-native';
+import { SendIcon as Send, BotIcon as Bot, UserIcon as User, InfoIcon as Info, HistoryIcon as History, SettingsIcon as Settings, Trash2Icon as Trash2, CopyIcon as Copy, ArrowLeftIcon as ArrowLeft } from '@/components/icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/contexts/theme-context';
 import { useChatStore } from '@/store/chat-store';

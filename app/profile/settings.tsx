@@ -8,34 +8,29 @@ import {
   ScrollView, 
   Switch,
   Alert,
-  Modal,
   ActivityIndicator
 } from 'react-native';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import { 
-  ChevronRight, 
-  ArrowLeft, 
-  Moon, 
-  Globe, 
-  AlertTriangle, 
-  Info,
-  Bell,
-  Lock
-} from 'lucide-react-native';
+  ChevronRightIcon as ChevronRight, 
+  ArrowLeftIcon as ArrowLeft, 
+  MoonIcon as Moon, 
+  AlertTriangleIcon as AlertTriangle, 
+  InfoIcon as Info,
+  BellIcon as Bell,
+  LockIcon as Lock
+} from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
-import { useLanguage } from '@/contexts/language-context';
 import { useUserStore } from '@/store/user-store';
-import { apiService } from '@/lib/api';
+import apiService from '@/lib/api';
 
 export default function SettingsScreen() {
   const router = useRouter();
   const { theme, isDarkMode, toggleTheme } = useTheme();
-  const { language, setLanguage, t, availableLanguages } = useLanguage();
   const { userProfile, signOutFirebase, updateUserProfile } = useUserStore();
   
   // State variables
-  const [languageModalVisible, setLanguageModalVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(userProfile?.preferences?.notifications ?? true);
   const [privacyMode, setPrivacyMode] = useState(userProfile?.preferences?.privacyMode ?? false);
@@ -88,25 +83,6 @@ export default function SettingsScreen() {
     }
   };
 
-  // Handle language change
-  const handleLanguageChange = async (langCode: string) => {
-    setLanguage(langCode as keyof typeof availableLanguages);
-    setLanguageModalVisible(false);
-    
-    // Save language preference to user profile
-    if (userProfile?.email) {
-      try {
-        await updateUserProfile({
-          preferences: {
-            ...userProfile.preferences,
-            language: langCode
-          }
-        });
-      } catch (error) {
-        console.error('Failed to save language preference:', error);
-      }
-    }
-  };
 
   // Handle account deactivation
   const handleDeactivateAccount = () => {
@@ -123,7 +99,7 @@ export default function SettingsScreen() {
             try {
               if (userProfile?.email) {
                 // Call API to deactivate account
-                await apiService.updateProfile(userProfile.email, {
+                await apiService.updateProfile({
                   ...userProfile as any,
                   status: 'deactivated'
                 });
@@ -175,7 +151,7 @@ export default function SettingsScreen() {
           <ArrowLeft size={24} color={theme.text} strokeWidth={isDarkMode ? 2.5 : 2} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text }]}>
-          {t.settings.title}
+          Settings
         </Text>
         <View style={styles.headerRight} />
       </View>
@@ -186,7 +162,7 @@ export default function SettingsScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Appearance Section */}
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.appearance}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Appearance</Text>
         <View style={[styles.section, { backgroundColor: theme.white }]}>
           <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
             <View style={styles.settingLeft}>
@@ -194,7 +170,7 @@ export default function SettingsScreen() {
                 <Moon size={18} color={theme.primary} />
               </View>
               <Text style={[styles.settingText, { color: theme.text }]}>
-                {t.settings.darkMode}
+                Dark Mode
               </Text>
             </View>
             <Switch
@@ -204,30 +180,10 @@ export default function SettingsScreen() {
               thumbColor="#FFFFFF"
             />
           </View>
-
-          <TouchableOpacity 
-            style={[styles.settingItem]}
-            onPress={() => setLanguageModalVisible(true)}
-          >
-            <View style={styles.settingLeft}>
-              <View style={[styles.iconContainer, { backgroundColor: isDarkMode ? '#2A3D4C' : '#E5F5FF' }]}>
-                <Globe size={18} color="#0085FF" />
-              </View>
-              <Text style={[styles.settingText, { color: theme.text }]}>
-                {t.settings.language}
-              </Text>
-            </View>
-            <View style={styles.settingRight}>
-              <Text style={[styles.settingValue, { color: theme.textSecondary }]}>
-                {availableLanguages[language].name}
-              </Text>
-              <ChevronRight size={18} color={theme.textSecondary} />
-            </View>
-          </TouchableOpacity>
         </View>
 
         {/* Preferences Section */}
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.preferences}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Preferences</Text>
         <View style={[styles.section, { backgroundColor: theme.white }]}>
           <View style={[styles.settingItem, { borderBottomColor: theme.border }]}>
             <View style={styles.settingLeft}>
@@ -235,7 +191,7 @@ export default function SettingsScreen() {
                 <Bell size={18} color="#00C853" />
               </View>
               <Text style={[styles.settingText, { color: theme.text }]}>
-                {t.settings.notifications}
+                Notifications
               </Text>
             </View>
             <Switch
@@ -252,7 +208,7 @@ export default function SettingsScreen() {
                 <Lock size={18} color="#0085FF" />
               </View>
               <Text style={[styles.settingText, { color: theme.text }]}>
-                {t.settings.privacyMode}
+                Privacy Mode
               </Text>
             </View>
             <Switch
@@ -265,7 +221,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* About & Support Section */}
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t.settings.aboutSupport}</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>About & Support</Text>
         <View style={[styles.section, { backgroundColor: theme.white }]}>
           <TouchableOpacity 
             style={[styles.settingItem, { borderBottomColor: theme.border }]}
@@ -276,7 +232,7 @@ export default function SettingsScreen() {
                 <Info size={18} color="#00C853" />
               </View>
               <Text style={[styles.settingText, { color: theme.text }]}>
-                {t.settings.aboutUs}
+                About Us
               </Text>
             </View>
             <ChevronRight size={18} color={theme.textSecondary} />
@@ -292,7 +248,7 @@ export default function SettingsScreen() {
                 <AlertTriangle size={18} color="#FF3B30" />
               </View>
               <Text style={[styles.settingText, { color: '#FF3B30' }]}>
-                {t.settings.deactivateAccount}
+                Deactivate Account
               </Text>
             </View>
             {isLoading ? (
@@ -303,50 +259,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
-
-      {/* Language Selection Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={languageModalVisible}
-        onRequestClose={() => setLanguageModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: theme.white }]}>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>
-              {t.settings.selectLanguage}
-            </Text>
-            
-            {Object.keys(availableLanguages).map((langCode) => (
-              <TouchableOpacity
-                key={langCode}
-                style={[
-                  styles.languageOption,
-                  language === langCode && [styles.selectedLanguage, { backgroundColor: theme.primaryLight }]
-                ]}
-                onPress={() => handleLanguageChange(langCode)}
-              >
-                <Text 
-                  style={[
-                    styles.languageText, 
-                    { color: theme.text },
-                    language === langCode && { color: theme.primary, fontWeight: '600' }
-                  ]}
-                >
-                  {availableLanguages[langCode as keyof typeof availableLanguages].name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-            
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.primary }]}
-              onPress={() => setLanguageModalVisible(false)}
-            >
-              <Text style={styles.modalButtonText}>{t.settings.back}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

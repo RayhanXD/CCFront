@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle } from 'lucide-react-native';
+import { AlertCircleIcon as AlertCircle } from '@/components/icons';
 import Dialog from './Dialog';
 import Colors from '@/constants/colors';
 

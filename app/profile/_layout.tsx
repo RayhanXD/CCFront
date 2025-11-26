@@ -1,7 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { TouchableOpacity } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeftIcon as ArrowLeft } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 import { useRouter } from 'expo-router';
 

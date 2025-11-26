@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions, Activ
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
-import { ChevronLeft, Calendar, RefreshCw, CalendarDays } from 'lucide-react-native';
+import { ChevronLeftIcon as ChevronLeft, CalendarIconComponent as Calendar, RefreshCwIcon as RefreshCw, CalendarDaysIcon as CalendarDays } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useTodayEvents, useCalendar } from '@/hooks/useApiData';
 import { CalendarEvent } from '@/types/calendar';
@@ -18,8 +18,8 @@ export default function AllTodayEventsScreen() {
   // Use API data hook to fetch today's events
   const { data: eventsData, loading: isLoading, error, refetch } = useTodayEvents();
   
-  // Fetch future events using the working POST /calendar endpoint
-  const { data: futureEventsData, loading: futureLoading } = useCalendar(userEmail);
+  // Fetch future events using the working POST /calendar endpoint (backend uses UID from JWT token)
+  const { data: futureEventsData, loading: futureLoading } = useCalendar();
   
   const [refreshing, setRefreshing] = useState(false);
   const [sortedEvents, setSortedEvents] = useState<CalendarEvent[]>([]);
@@ -257,6 +257,7 @@ export default function AllTodayEventsScreen() {
                   variant="vertical" 
                   showLearnMore={false}
                   showRelevanceScore={true}
+                  index={index}
                 />
               </View>
             ))}
@@ -284,6 +285,7 @@ export default function AllTodayEventsScreen() {
                   variant="vertical" 
                   showLearnMore={false}
                   showRelevanceScore={true}
+                  index={index}
                 />
               </View>
             ))}

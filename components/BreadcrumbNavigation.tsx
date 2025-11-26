@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRightIcon as ChevronRight } from '@/components/icons';
 import { useRouter } from 'expo-router';
 import type { Href } from 'expo-router';
 import Colors from '@/constants/colors';

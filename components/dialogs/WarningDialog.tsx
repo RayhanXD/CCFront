@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle } from 'lucide-react-native';
+import { AlertTriangleIcon as AlertTriangle } from '@/components/icons';
 import Dialog from './Dialog';
 import Colors from '@/constants/colors';
 

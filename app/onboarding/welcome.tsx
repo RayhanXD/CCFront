@@ -11,7 +11,7 @@ import {
   Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Calendar, Award, Users, MessageSquare, ChevronRight } from 'lucide-react-native';
+import { CalendarIconComponent as Calendar, AwardIcon as Award, UsersIcon as Users, MessageSquareIcon as MessageSquare, ChevronRightIcon as ChevronRight } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useUserStore } from '@/store/user-store';
 import { useEventsStore } from '@/store/events-store';

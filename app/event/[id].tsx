@@ -17,30 +17,31 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Clock, 
-  MapPin, 
-  Share2, 
-  Bookmark,
-  Tag,
-  User,
-  Users,
-  Info,
-  ExternalLink,
-  CalendarPlus,
-  AlertCircle,
-  ArrowLeft,
-  Calendar as CalendarIcon,
-  Share as ShareIcon,
-  AlertTriangle
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  ClockIcon as Clock, 
+  MapPinIcon as MapPin, 
+  Share2Icon as Share2, 
+  BookmarkIcon as Bookmark,
+  TagIcon as Tag,
+  UserIcon as User,
+  UsersIcon as Users,
+  InfoIcon as Info,
+  ExternalLinkIcon as ExternalLink,
+  CalendarPlusIcon as CalendarPlus,
+  AlertCircleIcon as AlertCircle,
+  ArrowLeftIcon as ArrowLeft,
+  CalendarIconComponent as CalendarIcon,
+  ShareIconComponent as ShareIcon,
+  AlertTriangleIcon as AlertTriangle
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
 import { CalendarEvent } from '@/types/calendar';
 import { TodayEvent } from '@/types/events';
 import { useTodayEvents, useCalendar } from '@/hooks/useApiData';
 import { useUserStore } from '@/store/user-store';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '@/contexts/theme-context';
+import apiService from '@/lib/api';
 import * as WebBrowser from 'expo-web-browser';
 import * as Calendar from 'expo-calendar';
 import * as Sharing from 'expo-sharing';
@@ -70,12 +71,13 @@ export default function EventDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { userProfile } = useUserStore();
+  const { theme, isDarkMode } = useTheme();
   const userEmail = userProfile?.email || '';
   
   
   // Fetch events from API using the working endpoints
   const { data: todayEventsData, loading: todayLoading, refetch: refetchToday } = useTodayEvents();
-  const { data: calendarEventsData, loading: calendarLoading, refetch: refetchCalendar } = useCalendar(userEmail);
+  const { data: calendarEventsData, loading: calendarLoading, refetch: refetchCalendar } = useCalendar();
   
   const todayEvents = todayEventsData?.events || [];
   const calendarEvents = calendarEventsData?.events || [];
@@ -86,15 +88,15 @@ export default function EventDetailsScreen() {
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [savedEvents, setSavedEvents] = useState<string[]>([]);
+  const [savingEvent, setSavingEvent] = useState(false);
   
-  // Load saved events from AsyncStorage
+  // Load saved events from backend API
   useEffect(() => {
     const loadSavedEvents = async () => {
       try {
-        const saved = await AsyncStorage.getItem('saved_events');
-        if (saved) {
-          setSavedEvents(JSON.parse(saved));
-        }
+        const response = await apiService.getSavedEvents();
+        const eventIds = response.events?.map((e: any) => e.id) || [];
+        setSavedEvents(eventIds);
       } catch (err) {
         console.error('Error loading saved events:', err);
       }
@@ -107,22 +109,76 @@ export default function EventDetailsScreen() {
   };
   
   const saveEvent = async (eventId: string) => {
+    if (savingEvent) return;
+    
     try {
-      const updated = [...savedEvents, eventId];
-      setSavedEvents(updated);
-      await AsyncStorage.setItem('saved_events', JSON.stringify(updated));
+      setSavingEvent(true);
+      // Get the event data to save
+      const eventToSave = event;
+      if (!eventToSave) return;
+      
+      // Use the backend event ID if available, otherwise use the display ID
+      const backendId = (eventToSave as any).backendEventId || eventId;
+      
+      console.log('💾 Saving event:', {
+        displayId: eventId,
+        backendId: backendId,
+        title: eventToSave.title
+      });
+      
+      // Call backend API to save event
+      await apiService.saveUserEvent(backendId, {
+        title: eventToSave.title,
+        name: eventToSave.title, // Backend requires both title and name
+        start_date: 'date' in eventToSave ? eventToSave.date : new Date().toISOString().split('T')[0],
+        end_date: 'date' in eventToSave ? eventToSave.date : new Date().toISOString().split('T')[0],
+        location: eventToSave.location || null,
+        image_url: 'img' in eventToSave ? eventToSave.img : null,
+        time: 'time' in eventToSave ? eventToSave.time : null,
+        duration: 'duration' in eventToSave ? eventToSave.duration : null,
+        description: eventToSave.description || null,
+        category: 'category' in eventToSave ? eventToSave.category : null,
+        color: 'color' in eventToSave ? eventToSave.color : null,
+        isRecurring: 'isRecurring' in eventToSave ? eventToSave.isRecurring : false,
+      });
+      
+      // Update local state
+      setSavedEvents([...savedEvents, eventId]);
+      Alert.alert('Success', 'Event saved successfully');
     } catch (err) {
       console.error('Error saving event:', err);
+      Alert.alert('Error', 'Failed to save event. Please try again.');
+    } finally {
+      setSavingEvent(false);
     }
   };
   
   const unsaveEvent = async (eventId: string) => {
+    if (savingEvent) return;
+    
     try {
-      const updated = savedEvents.filter(id => id !== eventId);
-      setSavedEvents(updated);
-      await AsyncStorage.setItem('saved_events', JSON.stringify(updated));
+      setSavingEvent(true);
+      
+      // Use the backend event ID if available, otherwise use the display ID
+      const eventToUnsave = event;
+      const backendId = eventToUnsave ? (eventToUnsave as any).backendEventId || eventId : eventId;
+      
+      console.log('🗑️ Unsaving event:', {
+        displayId: eventId,
+        backendId: backendId,
+        title: eventToUnsave?.title
+      });
+      
+      await apiService.unsaveUserEvent(backendId);
+      
+      // Update local state
+      setSavedEvents(savedEvents.filter(id => id !== eventId));
+      Alert.alert('Success', 'Event removed from saved');
     } catch (err) {
       console.error('Error unsaving event:', err);
+      Alert.alert('Error', 'Failed to remove event. Please try again.');
+    } finally {
+      setSavingEvent(false);
     }
   };
   
@@ -216,14 +272,86 @@ export default function EventDetailsScreen() {
   };
   
   // Handle calendar add
-  const handleAddToCalendar = () => {
+  const handleAddToCalendar = async () => {
     if (!event) return;
     
-    Alert.alert(
-      "Add to Calendar",
-      "This would add the event to your device calendar. Feature coming soon!",
-      [{ text: "OK" }]
-    );
+    try {
+      // Request calendar permissions
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Permission Required',
+          'Calendar permission is required to add events. Please enable it in your device settings.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      // Get default calendar
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+      const defaultCalendar = calendars.find(cal => cal.allowsModifications) || calendars[0];
+      
+      if (!defaultCalendar) {
+        Alert.alert('Error', 'No calendar available on this device.');
+        return;
+      }
+      
+      // Parse event date and time
+      const eventDate = event.date ? new Date(event.date) : new Date();
+      const eventTime = ('time' in event && event.time) || 
+                       ('startTime' in event && event.startTime) || 
+                       '12:00 PM';
+      
+      // Parse time string (e.g., "2:00 PM" or "14:00")
+      const timeMatch = eventTime.match(/(\d+):(\d+)\s*(AM|PM)?/i);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1]);
+        const minutes = parseInt(timeMatch[2]);
+        const meridiem = timeMatch[3]?.toUpperCase();
+        
+        // Convert to 24-hour format if needed
+        if (meridiem === 'PM' && hours !== 12) {
+          hours += 12;
+        } else if (meridiem === 'AM' && hours === 12) {
+          hours = 0;
+        }
+        
+        eventDate.setHours(hours, minutes, 0, 0);
+      }
+      
+      // Calculate end time (default to 1 hour duration)
+      const duration = ('duration' in event && event.duration) || 60; // duration in minutes
+      const endDate = new Date(eventDate.getTime() + duration * 60000);
+      
+      // Create calendar event details
+      const eventDetails = {
+        title: event.title,
+        startDate: eventDate,
+        endDate: endDate,
+        location: event.location || '',
+        notes: event.description || '',
+        timeZone: 'America/Chicago', // Adjust based on your timezone
+        alarms: [{ relativeOffset: -30 }], // 30 minutes before
+      };
+      
+      const eventId = await Calendar.createEventAsync(defaultCalendar.id, eventDetails);
+      
+      Alert.alert(
+        'Success',
+        `"${event.title}" has been added to your calendar!`,
+        [{ text: 'OK' }]
+      );
+      
+      console.log('✅ Event added to calendar:', eventId);
+    } catch (error) {
+      console.error('❌ Error adding event to calendar:', error);
+      Alert.alert(
+        'Error',
+        'Failed to add event to calendar. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
   };
   
   // Handle registration
@@ -256,21 +384,22 @@ export default function EventDetailsScreen() {
   
   if (loading || todayLoading || calendarLoading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
+        <View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <ChevronLeft size={24} color={Colors.text} />
+            <ChevronLeft size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Event Details</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Event Details</Text>
           <View style={styles.placeholder} />
         </View>
         
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading event details...</Text>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={[styles.loadingText, { color: theme.text }]}>Loading event details...</Text>
         </View>
       </SafeAreaView>
     );
@@ -278,23 +407,24 @@ export default function EventDetailsScreen() {
 
   if (error || !event) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+        <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
+        <View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
           <TouchableOpacity 
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <ChevronLeft size={24} color={Colors.text} />
+            <ChevronLeft size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Event Details</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Event Details</Text>
           <View style={styles.headerRight} />
         </View>
         
         <View style={styles.centered}>
           <AlertTriangle size={48} color={Colors.error} style={styles.errorIcon} />
-          <Text style={styles.errorText}>{error || 'Event not found'}</Text>
+          <Text style={[styles.errorText, { color: theme.text }]}>{error || 'Event not found'}</Text>
           <TouchableOpacity 
-            style={styles.retryButton}
+            style={[styles.retryButton, { backgroundColor: theme.primary }]}
             onPress={fetchEvent}
           >
             <Text style={styles.retryButtonText}>Try Again</Text>
@@ -305,17 +435,17 @@ export default function EventDetailsScreen() {
   }
   
   return (
-    <SafeAreaView style={styles.container}>
-      <CustomStatusBar style="dark" />
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
+      <CustomStatusBar style={isDarkMode ? 'light' : 'dark'} />
       
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: theme.cardBackground, borderBottomColor: theme.border }]}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <ChevronLeft size={24} color={Colors.text} />
+          <ChevronLeft size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Event Details</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Event Details</Text>
         <View style={styles.placeholder} />
       </View>
       
@@ -329,8 +459,8 @@ export default function EventDetailsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.primary]}
-            tintColor={Colors.primary}
+            colors={[theme.primary]}
+            tintColor={theme.primary}
           />
         }
       >
@@ -361,38 +491,38 @@ export default function EventDetailsScreen() {
           )}
         </View>
         
-        <View style={styles.contentContainer}>
-          <Text style={styles.title}>{String(event.title || 'Untitled Event')}</Text>
+        <View style={[styles.contentContainer, { backgroundColor: theme.cardBackground }]}>
+          <Text style={[styles.title, { color: theme.text }]}>{String(event.title || 'Untitled Event')}</Text>
           
           <View style={styles.actionsContainer}>
             <TouchableOpacity 
-              style={styles.actionButton}
+              style={[styles.actionButton, { backgroundColor: theme.primaryLight }]}
               onPress={handleShare}
             >
-              <Share2 size={22} color={Colors.primary} />
+              <Share2 size={22} color={theme.primary} />
             </TouchableOpacity>
             
             <TouchableOpacity 
-              style={[styles.actionButton, saved && styles.savedButton]}
+              style={[styles.actionButton, saved && [styles.savedButton, { backgroundColor: theme.primary }], !saved && { backgroundColor: theme.primaryLight }]}
               onPress={handleSaveToggle}
             >
-              <Bookmark size={22} color={saved ? Colors.white : Colors.primary} />
+              <Bookmark size={22} color={saved ? Colors.white : theme.primary} />
             </TouchableOpacity>
           </View>
           
-          <View style={styles.infoContainer}>
+          <View style={[styles.infoContainer, { backgroundColor: theme.white }]}>
             {'date' in event && event.date && (
               <View style={styles.infoItem}>
-                <CalendarIcon size={16} color={Colors.textSecondary} />
-                <Text style={styles.infoText}>
+                <CalendarIcon size={16} color={theme.textSecondary} />
+                <Text style={[styles.infoText, { color: theme.textSecondary }]}>
                   {formatDate(event.date)}
                 </Text>
               </View>
             )}
             
             <View style={styles.infoItem}>
-              <Clock size={16} color={Colors.textSecondary} />
-              <Text style={styles.infoText}>
+              <Clock size={16} color={theme.textSecondary} />
+              <Text style={[styles.infoText, { color: theme.textSecondary }]}>
                 {'time' in event && event.time ? event.time : 
                  ('startTime' in event && 'endTime' in event) ? `${event.startTime} - ${event.endTime}` : 'Time not specified'}
               </Text>
@@ -400,8 +530,8 @@ export default function EventDetailsScreen() {
             
             {'duration' in event && event.duration && (
               <View style={styles.infoItem}>
-                <Clock size={16} color={Colors.textSecondary} />
-                <Text style={styles.infoText}>
+                <Clock size={16} color={theme.textSecondary} />
+                <Text style={[styles.infoText, { color: theme.textSecondary }]}>
                   Duration: {String(event.duration)} minutes
                 </Text>
               </View>
@@ -409,28 +539,28 @@ export default function EventDetailsScreen() {
             
             {event.location ? (
               <View style={styles.infoItem}>
-                <MapPin size={16} color={Colors.textSecondary} />
-                <Text style={styles.infoText}>
+                <MapPin size={16} color={theme.textSecondary} />
+                <Text style={[styles.infoText, { color: theme.textSecondary }]}>
                   {String(event.location || '')}
                 </Text>
               </View>
             ) : null}
             
             <View style={styles.infoItem}>
-              <User size={16} color={Colors.textSecondary} />
-              <Text style={styles.infoText}>
+              <User size={16} color={theme.textSecondary} />
+              <Text style={[styles.infoText, { color: theme.textSecondary }]}>
                 Organized by: {'organizer' in event ? String(event.organizer || 'Unknown') : 'Unknown'}
               </Text>
             </View>
           </View>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
           
           {'description' in event && event.description && (
             <>
               <View style={styles.sectionContainer}>
-                <Text style={styles.sectionTitle}>About This Event</Text>
-                <Text style={[styles.description, !showFullDescription && styles.truncatedDescription]}>
+                <Text style={[styles.sectionTitle, { color: theme.text }]}>About This Event</Text>
+                <Text style={[styles.description, { color: theme.textSecondary }, !showFullDescription && styles.truncatedDescription]}>
                   {String(event.description || '')}
                 </Text>
                 {event.description.length > 150 && (
@@ -438,38 +568,38 @@ export default function EventDetailsScreen() {
                     style={styles.readMoreButton}
                     onPress={() => setShowFullDescription(!showFullDescription)}
                   >
-                    <Text style={styles.readMoreText}>
+                    <Text style={[styles.readMoreText, { color: theme.primary }]}>
                       {showFullDescription ? 'Show Less' : 'Read More'}
                     </Text>
                   </TouchableOpacity>
                 )}
               </View>
               
-              <View style={styles.divider} />
+              <View style={[styles.divider, { backgroundColor: theme.border }]} />
             </>
           )}
           
           <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Event Details</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Event Details</Text>
             
-            <View style={styles.detailsCard}>
+            <View style={[styles.detailsCard, { backgroundColor: theme.primaryLight }]}>
               <View style={styles.detailItem}>
                 <View style={styles.detailIconContainer}>
-                  <AlertCircle size={20} color={Colors.primary} />
+                  <AlertCircle size={20} color={theme.primary} />
                 </View>
                 <View style={styles.detailContent}>
-                  <Text style={styles.detailTitle}>Important Information</Text>
-                  <Text style={styles.detailText}>Please bring your student ID for check-in. Refreshments will be provided.</Text>
+                  <Text style={[styles.detailTitle, { color: theme.text }]}>Important Information</Text>
+                  <Text style={[styles.detailText, { color: theme.textSecondary }]}>Please bring your student ID for check-in. Refreshments will be provided.</Text>
                 </View>
               </View>
               
               <View style={styles.detailItem}>
                 <View style={styles.detailIconContainer}>
-                  <Users size={20} color={Colors.primary} />
+                  <Users size={20} color={theme.primary} />
                 </View>
                 <View style={styles.detailContent}>
-                  <Text style={styles.detailTitle}>Who Should Attend</Text>
-                  <Text style={styles.detailText}>
+                  <Text style={[styles.detailTitle, { color: theme.text }]}>Who Should Attend</Text>
+                  <Text style={[styles.detailText, { color: theme.textSecondary }]}>
                     {'tags' in event && event.tags && event.tags.length > 0 
                       ? `Students interested in ${event.tags.join(', ')}. All experience levels welcome.`
                       : 'All students are welcome to attend this event.'}
@@ -479,16 +609,16 @@ export default function EventDetailsScreen() {
             </View>
           </View>
           
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: theme.border }]} />
           
           {'tags' in event && event.tags && event.tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              <Text style={styles.tagsTitle}>Tags:</Text>
+              <Text style={[styles.tagsTitle, { color: theme.text }]}>Tags:</Text>
               <View style={styles.tagsList}>
                 {event.tags.map((tag: string, index: number) => (
-                  <View key={`tag-${index}`} style={styles.tag}>
-                    <Tag size={12} color={Colors.primary} />
-                    <Text style={styles.tagText}>{tag}</Text>
+                  <View key={`tag-${index}`} style={[styles.tag, { backgroundColor: theme.primaryLight }]}>
+                    <Tag size={12} color={theme.primary} />
+                    <Text style={[styles.tagText, { color: theme.primary }]}>{tag}</Text>
                   </View>
                 ))}
               </View>
@@ -496,18 +626,18 @@ export default function EventDetailsScreen() {
           )}
           
           <TouchableOpacity 
-            style={styles.registerButton}
+            style={[styles.registerButton, { backgroundColor: theme.primary }]}
             onPress={handleRegister}
           >
             <Text style={styles.registerButtonText}>Register for Event</Text>
           </TouchableOpacity>
           
           <TouchableOpacity 
-            style={styles.calendarButton}
+            style={[styles.calendarButton, { borderColor: theme.primary }]}
             onPress={handleAddToCalendar}
           >
-            <CalendarPlus size={16} color={Colors.primary} style={styles.buttonIcon} />
-            <Text style={styles.calendarButtonText}>Add to Calendar</Text>
+            <CalendarPlus size={16} color={theme.primary} style={styles.buttonIcon} />
+            <Text style={[styles.calendarButtonText, { color: theme.primary }]}>Add to Calendar</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>

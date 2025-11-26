@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import CustomStatusBar from '@/components/CustomStatusBar';
-import { ChevronLeft, ChevronRight, Plus, RefreshCw, ChevronDown, Calendar as CalendarIcon } from 'lucide-react-native';
+import { ChevronLeftIcon as ChevronLeft, ChevronRightIcon as ChevronRight, PlusIcon as Plus, RefreshCwIcon as RefreshCw, ChevronDownIcon as ChevronDown, CalendarIconComponent as CalendarIcon } from '@/components/icons';
 import { router } from 'expo-router';
 import Colors from '@/constants/colors';
-import { useCalendar, useCalendarRange } from '@/hooks/useApiData';
+import { useCalendar, useCalendarRange, useSavedEvents, useUserEvents } from '@/hooks/useApiData';
 import { CalendarEvent } from '@/types/calendar';
 import EventCard from '@/components/EventCard';
 import { useTheme } from '@/contexts/theme-context';
@@ -24,10 +24,50 @@ export default function CalendarScreen() {
   const [visibleEvents, setVisibleEvents] = useState(3); // Number of events to show initially
   const [selectedDate, setSelectedDate] = useState(new Date());
   
-  // Use API data hook to fetch real calendar events with 3-month pagination
-  const { data: calendarData, loading: isLoading, error, refetch } = useCalendar(userEmail, currentMonth);
-  const events = Array.isArray(calendarData?.events) ? calendarData.events : [];
+  // Use API data hook to fetch real calendar events with 3-month pagination (backend uses UID from JWT token)
+  const { data: calendarData, loading: isLoading, error, refetch } = useCalendar(currentMonth);
+  const calendarEvents = Array.isArray(calendarData?.events) ? calendarData.events : [];
   const hasMoreEvents = calendarData?.hasMore || false;
+  
+  // Fetch saved events (personal events)
+  const { data: savedEventsData, loading: savedEventsLoading } = useSavedEvents();
+  const savedEvents = Array.isArray(savedEventsData?.events) ? savedEventsData.events : [];
+  
+  // Fetch user-created events
+  const { data: userEventsData, loading: userEventsLoading } = useUserEvents();
+  const userEvents = Array.isArray(userEventsData?.events) ? userEventsData.events : [];
+  
+  // Merge calendar events, saved events, and user-created events
+  const events = useMemo(() => {
+    // Mark saved events as personal
+    const personalSavedEvents = savedEvents.map(event => ({
+      ...event,
+      isPersonal: true,
+      color: event.color || '#7B5CFF' // Purple color for personal events
+    }));
+    
+    // Mark user-created events as personal
+    const personalUserEvents = userEvents.map(event => ({
+      ...event,
+      isPersonal: true,
+      color: event.color || '#7B5CFF' // Purple color for personal events
+    }));
+    
+    // Combine and remove duplicates based on ID
+    const allEvents = [...calendarEvents, ...personalSavedEvents, ...personalUserEvents];
+    const uniqueEvents = allEvents.filter((event, index, self) =>
+      index === self.findIndex((e) => e.id === event.id)
+    );
+    
+    console.log('📅 Calendar Events Merged:', {
+      calendarEvents: calendarEvents.length,
+      savedEvents: savedEvents.length,
+      userEvents: userEvents.length,
+      totalUnique: uniqueEvents.length
+    });
+    
+    return uniqueEvents;
+  }, [calendarEvents, savedEvents, userEvents]);
   
   // Get current date info
   const today = new Date();
@@ -403,6 +443,10 @@ export default function CalendarScreen() {
     
     const selectedEvents = getEventsForSelectedDate();
     
+    // Separate personal events from university events
+    const personalEvents = selectedEvents.filter((event: any) => event.isPersonal);
+    const universityEvents = selectedEvents.filter((event: any) => !event.isPersonal);
+    
     if (selectedEvents.length === 0) {
       return (
         <View style={styles.noEventsContainer}>
@@ -422,45 +466,72 @@ export default function CalendarScreen() {
       );
     }
     
-    // Show only the visible number of events
-    const eventsToShow = selectedEvents.slice(0, visibleEvents);
-    const hasMoreEvents = selectedEvents.length > visibleEvents;
-    
     return (
       <>
-        {eventsToShow.map((event, index) => (
-          <EventCard
-            key={String(event.id || `event-${index}`)}
-            event={event}
-            variant="calendar"
-            showLearnMore={false}
-            showRelevanceScore={false}
-          />
-        ))}
+        {/* Personal Events Section */}
+        {personalEvents.length > 0 && (
+          <View style={styles.eventSection}>
+            <View style={[styles.sectionHeader, { backgroundColor: theme.primaryLight }]}>
+              <ThemedText variant="h3" color="accent" style={styles.sectionTitle}>
+                Personal Events ({personalEvents.length})
+              </ThemedText>
+            </View>
+            {personalEvents.map((event, index) => (
+              <EventCard
+                key={String(event.id || `personal-${index}`)}
+                event={event}
+                variant="calendar"
+                showLearnMore={false}
+                showRelevanceScore={false}
+                index={index}
+              />
+            ))}
+          </View>
+        )}
         
-        {hasMoreEvents && (
-          <TouchableOpacity 
-            style={[styles.showMoreButton, { backgroundColor: theme.primaryLight }]}
-            onPress={() => setVisibleEvents(prev => prev + 5)}
-          >
-            <ThemedText variant="button" color="accent" style={styles.showMoreButtonText}>
-              Show More
-            </ThemedText>
-            <ChevronDown size={16} color={theme.primary} strokeWidth={isDarkMode ? 2.5 : 2} />
-          </TouchableOpacity>
+        {/* University Events Section */}
+        {universityEvents.length > 0 && (
+          <View style={styles.eventSection}>
+            <View style={[styles.sectionHeader, { backgroundColor: theme.primaryLight }]}>
+              <ThemedText variant="h3" color="accent" style={styles.sectionTitle}>
+                University Events ({universityEvents.length})
+              </ThemedText>
+            </View>
+            {universityEvents.slice(0, visibleEvents).map((event, index) => (
+              <EventCard
+                key={String(event.id || `university-${index}`)}
+                event={event}
+                variant="calendar"
+                showLearnMore={false}
+                showRelevanceScore={false}
+                index={index}
+              />
+            ))}
+            
+            {universityEvents.length > visibleEvents && (
+              <TouchableOpacity 
+                style={[styles.showMoreButton, { backgroundColor: theme.primaryLight }]}
+                onPress={() => setVisibleEvents(prev => prev + 5)}
+              >
+                <ThemedText variant="button" color="accent" style={styles.showMoreButtonText}>
+                  Show More
+                </ThemedText>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
       </>
     );
-    } catch (error) {
-      console.error('Error in renderSelectedDayEvents:', error);
-      return (
-        <View style={styles.errorContainer}>
-          <ThemedText variant="body" color="error">
-            Error loading events
-          </ThemedText>
-        </View>
-      );
-    }
+  } catch (error) {
+    console.error('Error in renderSelectedDayEvents:', error);
+    return (
+      <View style={styles.errorContainer}>
+        <ThemedText variant="body" color="error">
+          Error loading events
+        </ThemedText>
+      </View>
+    );
+  }
   };
   
   return (
@@ -853,5 +924,19 @@ const styles = StyleSheet.create({
   recurringBadgeText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  eventSection: {
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginHorizontal: 20,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

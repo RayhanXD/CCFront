@@ -8,12 +8,12 @@ import {
   Dimensions 
 } from 'react-native';
 import { 
-  CheckCircle, 
-  AlertCircle, 
-  Info, 
-  AlertTriangle,
-  X
-} from 'lucide-react-native';
+  CircleCheckIcon as CheckCircle, 
+  AlertCircleIcon as AlertCircle, 
+  InfoIcon as Info, 
+  AlertTriangleIcon as AlertTriangle,
+  XIcon as X
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 
 const { width } = Dimensions.get('window');

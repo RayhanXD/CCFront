@@ -12,7 +12,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "@/contexts/theme-context";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "@/contexts/theme-context";
-import { LanguageProvider } from "@/contexts/language-context";
 import { DialogProvider } from "@/contexts/dialog-context";
 import { ToastProvider } from "@/contexts/toast-context";
 import CustomStatusBar from "@/components/CustomStatusBar";
@@ -54,13 +53,11 @@ export default function RootLayout() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <LanguageProvider>
-            <ToastProvider>
-              <DialogProvider>
-                <RootLayoutNav />
-              </DialogProvider>
-            </ToastProvider>
-          </LanguageProvider>
+          <ToastProvider>
+            <DialogProvider>
+              <RootLayoutNav />
+            </DialogProvider>
+          </ToastProvider>
         </ThemeProvider>
       </QueryClientProvider>
     </ErrorBoundary>
@@ -83,22 +80,8 @@ function RootLayoutNav() {
       setFirebaseUser(user);
       
       if (!user) {
-        // User is not authenticated, clear all cached data
-        console.log('🗑️ Clearing all cached data - user not authenticated');
-        try {
-          await AsyncStorage.multiRemove([
-            'auth_state',
-            'user_profile', 
-            'calendar_cache',
-            'events_cache',
-            'user-store-storage'
-          ]);
-          
-          // Clear user store
-          clearUserData();
-        } catch (error) {
-          console.error('Error clearing cache:', error);
-        }
+        // User is not authenticated - do not clear cache to preserve data
+        console.log('🔐 User not authenticated - cache preserved');
       } else if (user.email) {
         // User is authenticated - check if profile needs loading
         // This handles app reload with persisted auth (not fresh sign-in)

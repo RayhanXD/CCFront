@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
-import { Award, Calendar } from 'lucide-react-native';
+import { AwardIcon as Award, CalendarIconComponent as Calendar } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { Scholarship } from '@/types/scholarship';
 import { LinearGradient } from 'expo-linear-gradient';

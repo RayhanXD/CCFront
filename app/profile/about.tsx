@@ -10,7 +10,7 @@ import {
   Image
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Mail, FileText, Shield } from 'lucide-react-native';
+import { ArrowLeftIcon as ArrowLeft, MailIcon as Mail, FileTextIcon as FileText, ShieldIcon as Shield } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 import { useLanguage } from '@/contexts/language-context';
 import Logo from '@/components/Logo';

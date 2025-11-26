@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, TouchableOpacity, ScrollView, Platform, Image } from 'react-native';
 import { router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useCalendarStore } from '@/store/calendar-store';
 import Colors from '@/constants/colors';
-import { X, Check } from 'lucide-react-native';
+import { XIcon as X, CheckIcon as Check } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 import ThemedText from '@/components/ThemedText';
+import { CALENDAR_IMAGE } from '@/constants/images';
 
 export default function AddEventModal() {
   const addEvent = useCalendarStore((state) => state.addEvent);
@@ -21,7 +22,6 @@ export default function AddEventModal() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [color, setColor] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -72,7 +72,7 @@ export default function AddEventModal() {
       location,
       description,
       color: color || undefined,
-      img: imageUrl || undefined
+      img: Image.resolveAssetSource(CALENDAR_IMAGE).uri // Use calendar image for all created events
     };
 
     console.log('📝 AddEventModal: Submitting event:', newEvent);
@@ -285,28 +285,6 @@ export default function AddEventModal() {
             placeholderTextColor={theme.textMuted}
             multiline
             numberOfLines={4}
-          />
-        </View>
-        
-        <View style={styles.inputGroup}>
-          <ThemedText variant="bodySmall" weight="medium" style={styles.label}>
-            Image URL (optional)
-          </ThemedText>
-          <TextInput
-            style={[
-              styles.input, 
-              { 
-                backgroundColor: theme.inputBackground, 
-                borderColor: theme.border,
-                color: theme.text
-              }
-            ]}
-            value={imageUrl}
-            onChangeText={setImageUrl}
-            placeholder="https://example.com/image.jpg"
-            placeholderTextColor={theme.textMuted}
-            autoCapitalize="none"
-            keyboardType="url"
           />
         </View>
 

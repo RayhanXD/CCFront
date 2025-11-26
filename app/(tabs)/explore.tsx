@@ -8,7 +8,7 @@ import {
   FlatList, 
   Animated 
 } from 'react-native';
-import { Search, Shuffle, X } from 'lucide-react-native';
+import { SearchIcon as Search, ShuffleIcon as Shuffle, XIcon as X } from '@/components/icons';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useRouter } from 'expo-router';
 import Colors from '@/constants/colors';
@@ -70,8 +70,8 @@ export default React.memo(function ExploreScreen() {
   const { userProfile } = useUserStore();
   const userEmail = userProfile?.email || 'thomastito88@gmail.com'; // fallback email
   
-  // Use API hooks to fetch calendar events and today events data
-  const { data: calendarData, loading: calendarLoading, error: calendarError } = useCalendar(userEmail);
+  // Use API hooks to fetch calendar events and today events data (backend uses UID from JWT token)
+  const { data: calendarData, loading: calendarLoading, error: calendarError } = useCalendar();
   const { data: eventsData, loading: eventsLoading, error: eventsError } = useTodayEvents();
   
   // Process calendar events as organizations (since we're using calendar endpoint)
@@ -244,12 +244,13 @@ export default React.memo(function ExploreScreen() {
   };
   
   // Render item - handle both organizations and events
-  const renderItem = ({ item }: { item: ExploreItem }) => (
+  const renderItem = ({ item, index }: { item: ExploreItem; index: number }) => (
     <View style={styles.cardWrapper}>
       {item.itemType === 'organization' ? (
         <OrganizationCard 
           organization={item as Organization} 
-          onPress={(id) => handleCardPress(id, 'organization')} 
+          onPress={(id) => handleCardPress(id, 'organization')}
+          index={index}
         />
       ) : (
         <EventCard 
@@ -257,6 +258,7 @@ export default React.memo(function ExploreScreen() {
           variant="vertical"
           showLearnMore={false}
           showRelevanceScore={false}
+          index={index}
         />
       )}
     </View>

@@ -16,7 +16,7 @@ import {
   Dimensions
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowRight, User, GraduationCap, Mail, Search, X } from 'lucide-react-native';
+import { ArrowRightIcon as ArrowRight, UserIcon as User, GraduationCapIcon as GraduationCap, MailIcon as Mail, SearchIcon as Search, XIcon as X } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useUserStore } from '@/store/user-store';
 import { allMajors } from '@/constants/majors';

@@ -1,6 +1,6 @@
 import React, { memo, useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Clock, MapPin } from 'lucide-react-native';
+import { View, Text, StyleSheet, Image } from 'react-native';
+import { ClockIcon as Clock, MapPinIcon as MapPin } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { Organization } from '@/lib/api';
 import AnimatedCard from '@/components/AnimatedCard';
@@ -8,15 +8,27 @@ import InsightButton from '@/components/InsightButton';
 import OptimizedImage from '@/components/OptimizedImage';
 import { useUserStore } from '@/store/user-store';
 import { useTheme } from '@/contexts/theme-context';
+import { getStockPhotoByIndex } from '@/constants/images';
 
 interface OrganizationCardProps {
   organization: Organization;
   onPress: (id: string) => void;
+  index?: number;
 }
 
-const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
+const OrganizationCard = ({ organization, onPress, index = 0 }: OrganizationCardProps) => {
   const { userProfile } = useUserStore();
   const { theme, isDarkMode } = useTheme();
+  const [imageError, setImageError] = React.useState(false);
+  
+  // Use stock photo as fallback if no image URL or if image fails to load
+  const imageSource = useMemo(() => {
+    if (!imageError && (organization.picture || organization.imageUrl)) {
+      return { uri: organization.picture || organization.imageUrl };
+    }
+    // Use stock photo based on index for consistency
+    return getStockPhotoByIndex(index);
+  }, [organization.picture, organization.imageUrl, index, imageError]);
   
   return (
     <AnimatedCard
@@ -29,13 +41,22 @@ const OrganizationCard = ({ organization, onPress }: OrganizationCardProps) => {
       onPress={() => onPress(organization.id)}
     >
       <View style={[styles.imageContainer, { backgroundColor: isDarkMode ? theme.primaryDark : theme.primaryLight }]}>
-        <OptimizedImage
-          source={{ uri: organization.picture || organization.imageUrl || 'https://via.placeholder.com/150' }}
-          style={styles.image}
-          contentFit="cover"
-          transition={300}
-          cachePolicy="memory-disk"
-        />
+        {typeof imageSource === 'number' ? (
+          <Image
+            source={imageSource}
+            style={styles.image}
+            resizeMode="cover"
+          />
+        ) : (
+          <OptimizedImage
+            source={imageSource}
+            style={styles.image}
+            contentFit="cover"
+            transition={300}
+            cachePolicy="memory-disk"
+            onError={() => setImageError(true)}
+          />
+        )}
         <InsightButton 
           itemType="organization"
           itemName={organization.title || organization.name || 'Organization'}

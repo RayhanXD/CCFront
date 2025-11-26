@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { AlertCircle, RefreshCw } from 'lucide-react-native';
+import { AlertCircleIcon as AlertCircle, RefreshCwIcon as RefreshCw } from '@/components/icons';
 
 interface ChatErrorHandlerProps {
   error: Error | null;

@@ -11,14 +11,14 @@ import {
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Building2, 
-  User, 
-  Calendar, 
-  MapPin, 
-  Share2, 
-  ExternalLink 
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  Building2Icon as Building2, 
+  UserIcon as User, 
+  CalendarIconComponent as Calendar, 
+  MapPinIcon as MapPin, 
+  Share2Icon as Share2, 
+  ExternalLinkIcon as ExternalLink 
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useCampusStore } from '@/store/campus-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { Users, Calendar, BookOpen, CircleCheck } from 'lucide-react-native';
+import { UsersIcon as Users, CalendarIconComponent as Calendar, BookOpenIcon as BookOpen, CircleCheckIcon as CircleCheck } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useCampusStore } from '@/store/campus-store';
 import { useTheme } from '@/contexts/theme-context';

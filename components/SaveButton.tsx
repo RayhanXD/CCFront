@@ -1,6 +1,6 @@
 import React from 'react';
 import { TouchableOpacity, StyleSheet, View } from 'react-native';
-import { Heart } from 'lucide-react-native';
+import { HeartIcon as Heart } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useSavedItemsStore } from '@/store/saved-items-store';
 import { useToast } from '@/contexts/toast-context';

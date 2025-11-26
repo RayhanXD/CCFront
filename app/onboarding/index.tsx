@@ -10,7 +10,7 @@ import {
   StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowRight } from 'lucide-react-native';
+import { ArrowRightIcon as ArrowRight } from '@/components/icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '@/constants/colors';
 import Logo from '@/components/Logo';

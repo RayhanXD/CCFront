@@ -14,7 +14,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useUserStore } from '@/store/user-store';
 import { UserProfile as ApiUserProfile } from '@/lib/api';
 import Colors from '@/constants/colors';
-import { ArrowRight, ArrowLeft } from 'lucide-react-native';
+import { ArrowRightIcon as ArrowRight, ArrowLeftIcon as ArrowLeft } from '@/components/icons';
 import INTERESTS from '@/constants/interests';
 
 export default function InterestsScreen() {
@@ -75,11 +75,13 @@ export default function InterestsScreen() {
       const completeUserData: ApiUserProfile = {
         ...userData,
         interests,
-        name: `${userData.name.trim()} ${userData.surname.trim()}`,
+        name: userData.name.trim(),
+        surname: userData.surname.trim(),
         email: userData.email.trim(),
         major: userData.major.trim(),
       };
 
+      console.log('🚀 Starting signup process...');
       const success = await signUpWithEmailPassword(
         completeUserData.email,
         userData.password,
@@ -87,12 +89,26 @@ export default function InterestsScreen() {
       );
       
       if (success) {
+        console.log('✅ Signup successful, navigating to home...');
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Sign Up Failed', error || 'Please try again');
+        // Get the error from store
+        const errorMsg = error || 'Sign up failed. Please try again.';
+        console.error('❌ Signup failed:', errorMsg);
+        Alert.alert(
+          'Sign Up Failed', 
+          errorMsg,
+          [{ text: 'OK' }]
+        );
       }
     } catch (err) {
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      console.error('❌ Unexpected signup error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.';
+      Alert.alert(
+        'Error', 
+        errorMsg,
+        [{ text: 'OK' }]
+      );
     } finally {
       setIsLoading(false);
     }

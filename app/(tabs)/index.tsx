@@ -58,7 +58,7 @@ import { config } from '@/lib/config';
 import BackToTopButton from '@/components/BackToTopButton';
 import Logo from '@/components/Logo';
 import NetworkErrorBanner from '@/components/NetworkErrorBanner';
-import { MessageSquare } from 'lucide-react-native';
+import { MessageSquareIcon as MessageSquare } from '@/components/icons';
 import ThemedText from '@/components/ThemedText';
 
 export default React.memo(function HomeScreen() {
@@ -140,11 +140,12 @@ export default React.memo(function HomeScreen() {
     router.push(`/organization/${id}`);
   };
 
-  const renderItem = ({ item }: { item: any }) => (
+  const renderItem = ({ item, index }: { item: any; index: number }) => (
     <View style={styles.cardWrapper}>
       <OrganizationCard 
         organization={item} 
-        onPress={handleCardPress} 
+        onPress={handleCardPress}
+        index={index}
       />
     </View>
   );
@@ -266,7 +267,8 @@ export default React.memo(function HomeScreen() {
                 <View key={item.id || `org-${index}`} style={styles.cardWrapper}>
                   <OrganizationCard 
                     organization={item} 
-                    onPress={handleCardPress} 
+                    onPress={handleCardPress}
+                    index={index}
                   />
                 </View>
               ))}

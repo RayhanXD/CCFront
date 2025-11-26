@@ -10,7 +10,7 @@ import {
   Animated,
   Easing
 } from 'react-native';
-import { HelpCircle, X, Info } from 'lucide-react-native';
+import { HelpCircleIcon as HelpCircle, XIcon as X, InfoIcon as Info } from '@/components/icons';
 import Colors from '@/constants/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 

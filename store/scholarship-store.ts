@@ -242,7 +242,8 @@ export const useScholarshipStore = create<ScholarshipState>((set, get) => ({
                   Array.isArray(item.categories) ? item.categories :
                   typeof item.keywords === 'string' ? item.keywords.split(',').map((t: string) => t.trim()) :
                   item['Which Major'] || item['Major'] || item['Majors'] ? [item['Which Major'] || item['Major'] || item['Majors']] :
-                  ['General']
+                  ['General'],
+            url: item['Scholarship URL'] || item.url || item.link || item.application_url || undefined
           };
         } catch (error) {
           console.error('Error transforming scholarship item:', item, error);
@@ -256,7 +257,8 @@ export const useScholarshipStore = create<ScholarshipState>((set, get) => ({
             matchPercentage: 0,
             category: category || item?.category || 'General',
             renewable: false,
-            tags: []
+            tags: [],
+            url: undefined
           };
         }
       });

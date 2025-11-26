@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Platform, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { RefreshCw, Home, AlertTriangle } from 'lucide-react-native';
+import { RefreshCwIcon as RefreshCw, HomeIcon as Home, AlertTriangleIcon as AlertTriangle } from '@/components/icons';
 
 interface Props {
   children: React.ReactNode;

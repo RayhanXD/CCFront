@@ -11,16 +11,16 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Award, 
-  Calendar, 
-  DollarSign, 
-  FileText, 
-  Share2, 
-  ExternalLink,
-  Tag,
-  Clock
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  AwardIcon as Award, 
+  CalendarIconComponent as Calendar, 
+  DollarSignIcon as DollarSign, 
+  FileTextIcon as FileText, 
+  Share2Icon as Share2, 
+  ExternalLinkIcon as ExternalLink,
+  TagIcon as Tag,
+  ClockIcon as Clock
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { LinearGradient } from 'expo-linear-gradient';

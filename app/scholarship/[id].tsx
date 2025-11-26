@@ -1,31 +1,36 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import CustomStatusBar from '@/components/CustomStatusBar';
 import { 
   View, 
   Text, 
   StyleSheet, 
-  SafeAreaView, 
   TouchableOpacity, 
-  ScrollView
+  ScrollView,
+  Linking,
+  Alert
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Award, 
-  Calendar, 
-  DollarSign, 
-  FileText, 
-  Share2, 
-  ExternalLink,
-  Tag,
-  Clock
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  AwardIcon as Award, 
+  CalendarIconComponent as Calendar, 
+  DollarSignIcon as DollarSign, 
+  FileTextIcon as FileText, 
+  Share2Icon as Share2, 
+  ExternalLinkIcon as ExternalLink,
+  TagIcon as Tag,
+  ClockIcon as Clock,
+  BookmarkIcon as Bookmark
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useScholarshipStore } from '@/store/scholarship-store';
 import { LinearGradient } from 'expo-linear-gradient';
-import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';
+import BreadcrumbNavigation, { BreadcrumbItem } from '@/components/BreadcrumbNavigation';
 import { useDialog } from '@/contexts/dialog-context';
 import { useToast } from '@/contexts/toast-context';
+import apiService from '@/lib/api';
+import * as WebBrowser from 'expo-web-browser';
 
 export default function ScholarshipDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -33,6 +38,9 @@ export default function ScholarshipDetailsScreen() {
   const { scholarships, isLoading, fetchScholarships } = useScholarshipStore();
   const { showSuccess, showInfo } = useDialog();
   const { showToast } = useToast();
+  
+  const [isSaved, setIsSaved] = useState(false);
+  const [savingScholarship, setSavingScholarship] = useState(false);
   
   // Fetch scholarships if not loaded
   React.useEffect(() => {
@@ -44,10 +52,28 @@ export default function ScholarshipDetailsScreen() {
   // Find the scholarship by ID
   const scholarship = scholarships.find(schol => schol.id === id);
   
+  // Load saved status
+  useEffect(() => {
+    const loadSavedStatus = async () => {
+      try {
+        const response = await apiService.getSavedItems();
+        const scholarshipIds = response.scholarships?.map((s: any) => s.id || s.scholarship_id) || [];
+        setIsSaved(scholarshipIds.includes(id));
+      } catch (err) {
+        console.error('Error loading saved scholarships:', err);
+        setIsSaved(false);
+      }
+    };
+
+    if (id) {
+      loadSavedStatus();
+    }
+  }, [id]);
+  
   // Breadcrumb items
-  const breadcrumbItems = [
-    { label: 'Scholarships', path: '/scholarships' },
-    { label: 'Scholarship', path: `/scholarship/${id}` },
+  const breadcrumbItems: BreadcrumbItem[] = [
+    { label: 'Scholarships', path: '/scholarships' as any },
+    { label: 'Scholarship', path: `/scholarship/${id}` as any },
   ];
   
   // Format currency
@@ -88,21 +114,80 @@ export default function ScholarshipDetailsScreen() {
     });
   };
   
-  // Handle apply
-  const handleApply = () => {
-    showSuccess({
-      title: 'Application Started',
-      message: `You're about to be redirected to the application portal for the ${scholarship?.name}. Make sure you have all required documents ready.`,
-      buttonText: 'Continue',
-      buttonAction: () => {
-        // In a real app, this would redirect to the application portal
+  // Handle save/unsave
+  const handleSaveToggle = async () => {
+    if (!scholarship) return;
+    
+    setSavingScholarship(true);
+    try {
+      if (isSaved) {
+        await apiService.unsaveScholarship(scholarship.id);
+        setIsSaved(false);
         showToast({
-          message: 'Application portal opened in browser',
-          type: 'info',
+          message: 'Scholarship removed from saved items',
+          type: 'success',
           position: 'top',
         });
-      },
-    });
+      } else {
+        await apiService.saveScholarship(scholarship); // Pass entire scholarship object
+        setIsSaved(true);
+        showToast({
+          message: 'Scholarship saved successfully',
+          type: 'success',
+          position: 'top',
+        });
+      }
+    } catch (error) {
+      console.error('Error toggling save status:', error);
+      showToast({
+        message: 'Failed to update save status',
+        type: 'error',
+        position: 'top',
+      });
+    } finally {
+      setSavingScholarship(false);
+    }
+  };
+  
+  // Handle open URL
+  const handleOpenUrl = async () => {
+    if (!scholarship?.url) {
+      console.log('⚠️ No URL available for scholarship');
+      Alert.alert('No URL', 'This scholarship does not have an application URL.');
+      return;
+    }
+    
+    console.log('🌐 Opening URL in browser:', scholarship.url);
+    
+    try {
+      const result = await WebBrowser.openBrowserAsync(scholarship.url);
+      console.log('✅ Browser opened successfully:', result);
+    } catch (error) {
+      console.error('❌ Error opening URL:', error);
+      Alert.alert('Error', `Failed to open scholarship URL: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+  
+  // Handle apply
+  const handleApply = async () => {
+    // Always try to open URL if it exists
+    if (scholarship?.url) {
+      console.log('📱 Opening scholarship URL:', scholarship.url);
+      await handleOpenUrl();
+    } else {
+      showSuccess({
+        title: 'Application Started',
+        message: `You're about to be redirected to the application portal for the ${scholarship?.name}. Make sure you have all required documents ready.`,
+        buttonText: 'Continue',
+        buttonAction: () => {
+          showToast({
+            message: 'Application portal opened in browser',
+            type: 'info',
+            position: 'top',
+          });
+        },
+      });
+    }
   };
   
   // Show loading state while fetching
@@ -215,6 +300,18 @@ export default function ScholarshipDetailsScreen() {
             >
               <Share2 size={22} color={Colors.primary} />
             </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.actionButton, isSaved && styles.actionButtonActive]}
+              onPress={handleSaveToggle}
+              disabled={savingScholarship}
+            >
+              <Bookmark 
+                size={22} 
+                color={isSaved ? Colors.white : Colors.primary}
+                fill={isSaved ? Colors.white : 'none'}
+              />
+            </TouchableOpacity>
           </View>
           
           <View style={styles.infoContainer}>
@@ -319,33 +416,24 @@ export default function ScholarshipDetailsScreen() {
             </View>
           </View>
           
-          <View style={styles.tagsContainer}>
-            {scholarship.tags.map((tag, index) => (
-              <View key={`tag-${index}`} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
+          {scholarship.tags && scholarship.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {scholarship.tags.map((tag, index) => (
+                <View key={`tag-${index}`} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
           
           <TouchableOpacity 
             style={styles.applyButton}
             onPress={handleApply}
           >
-            <Text style={styles.applyButtonText}>Apply Now</Text>
+            <Text style={styles.applyButtonText}>
+              {scholarship.url ? 'Open Application' : 'Apply Now'}
+            </Text>
             <ExternalLink size={16} color={Colors.white} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.contactButton}
-            onPress={() => {
-              showInfo({
-                title: 'Contact Information',
-                message: `To contact ${scholarship.provider} about this scholarship, please email support@${scholarship.provider.toLowerCase().replace(/\s+/g, '')}.edu or call (555) 123-4567.`,
-                buttonText: 'Got It',
-              });
-            }}
-          >
-            <Text style={styles.contactButtonText}>Contact Provider</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -457,6 +545,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
+    borderColor: Colors.primary,
+  },
+  actionButtonActive: {
+    backgroundColor: Colors.primary,
     borderColor: Colors.primary,
   },
   infoContainer: {

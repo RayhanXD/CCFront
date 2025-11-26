@@ -1,5 +1,5 @@
 import React from 'react';
-import { Info } from 'lucide-react-native';
+import { InfoIcon as Info } from '@/components/icons';
 import Dialog from './Dialog';
 import Colors from '@/constants/colors';
 

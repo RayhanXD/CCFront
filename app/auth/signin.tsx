@@ -46,10 +46,14 @@ export default function SignInScreen() {
       if (success) {
         router.replace('/(tabs)');
       } else {
-        Alert.alert('Sign In Failed', error || 'Please check your email and try again');
+        const errorMessage = error || 'Please check your email and try again';
+        console.error('❌ Sign in failed:', errorMessage);
+        Alert.alert('Sign In Failed', errorMessage);
       }
     } catch (err) {
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      console.error('❌ Unexpected sign in error:', err);
+      const errorMsg = err instanceof Error ? err.message : 'An unexpected error occurred. Please try again.';
+      Alert.alert('Error', errorMsg);
     } finally {
       setIsLoading(false);
     }

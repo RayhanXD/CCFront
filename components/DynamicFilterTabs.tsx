@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
-import { CircleCheck, GraduationCap } from 'lucide-react-native';
+import { CircleCheckIcon as CircleCheck, GraduationCapIcon as GraduationCap } from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useTheme } from '@/contexts/theme-context';
 import { Organization } from '@/lib/api';

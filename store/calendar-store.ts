@@ -179,5 +179,4 @@ export const useCalendarStore = create<CalendarState>((set, get) => ({
 // Initialization hook
 export const useInitializeCalendar = () => {
   // Can be used for any initialization logic if needed
-  console.log('Calendar store initialized');
 };

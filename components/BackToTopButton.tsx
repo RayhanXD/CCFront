@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, memo, useMemo, useCallback } from 'react';
 import { StyleSheet, TouchableOpacity, Animated, Platform } from 'react-native';
-import { ArrowUp } from 'lucide-react-native';
+import { ArrowUpIcon as ArrowUp } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 import { createFadeAnimation, createSpringAnimation } from '@/utils/animation';
 

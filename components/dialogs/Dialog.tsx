@@ -9,7 +9,7 @@ import {
   TouchableWithoutFeedback,
   Animated
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { XIcon as X } from '@/components/icons';
 import Colors from '@/constants/colors';
 
 const { width } = Dimensions.get('window');

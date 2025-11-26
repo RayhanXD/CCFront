@@ -72,6 +72,8 @@ export interface Event {
   description?: string;
   location?: string;
   organization_id?: string;
+  organization_image?: string; // Organization's image URL (used when event has no image)
+  category?: string; // Event category (e.g., "Personal", "Academic", "Social")
   color?: string;
   img?: string; // URL to event image
   isRecurring?: boolean; // Flag for recurring events
@@ -88,12 +90,13 @@ export interface TutoringSession {
 
 export interface UserProfile {
   email: string;
+  uid?: string; // Firebase UID - required for signup
   name?: string;
   surname?: string;
   major?: string;
   year?: string;
   interests?: string[];
-  school_name?: string;
+  school_name?: string; // Will store university doc ID (short_hand)
   ftcs_status?: string;
   gpa_range?: string;
   educational_goals?: string;
@@ -103,6 +106,23 @@ export interface UserProfile {
   working_hours?: string;
   stress_level?: string;
   self_efficacy?: string;
+  // Additional fields from backend
+  academic_difficulty?: string | null;
+  current_gpa?: string | null;
+  family_responsibilities?: string | null;
+  financial_factors?: string | null;
+  high_school_grades?: string | null;
+  opportunity_to_transfer?: string | null;
+  outside_encouragement?: string | null;
+  satisfaction?: string | null;
+}
+
+export interface University {
+  id: string;
+  name: string;
+  short_hand: string;
+  location?: string;
+  [key: string]: any;
 }
 
 export interface ChatGPTMessage {
@@ -142,7 +162,9 @@ class ApiService {
     
     try {
       if (currentUser) {
-        token = await currentUser.getIdToken(false); // false = don't force refresh
+        // Force refresh token to ensure it's valid
+        token = await currentUser.getIdToken(true); // true = force refresh
+        console.log(`🔑 Token for ${endpoint}:`, token);
         if (__DEV__) {
           console.log(`🔑 Auth: User found, token retrieved for ${endpoint}`);
         }
@@ -389,32 +411,30 @@ class ApiService {
     return this.makeRequest("/organizations", {}, { cacheKey: "orgs", cacheTTL: 60000 });
   }
 
-  async getOrganizationRecommendations(user_email: string) {
+  async getOrganizationRecommendations() {
+    // Backend now uses UID from JWT token, no need to pass user_email
     return this.makeRequest("/recommendations/organizations", {
       method: "POST",
-      body: JSON.stringify({ user_email }),
+      body: JSON.stringify({}),
     });
   }
 
-  async getCalendar(user_email: string, options?: {
+  async getCalendar(options?: {
     start_date?: string;
     end_date?: string;
     page?: number;
     limit?: number;
   }): Promise<{ events: Event[]; total?: number; hasMore?: boolean }> {
-    console.log('📅 API getCalendar called with:', { user_email, options });
-    
-    // Generate cache key based on parameters
-    const cacheKey = `calendar_${user_email}_${options?.start_date || 'all'}_${options?.end_date || 'all'}_${options?.page || 1}`;
+    // Generate cache key based on parameters (UID will be from JWT token)
+    const cacheKey = `calendar_${options?.start_date || 'all'}_${options?.end_date || 'all'}_${options?.page || 1}`;
     
     // Check cache first (24 hour TTL for calendar data)
     const cached = apiCache.get(cacheKey);
     if (cached) {
-      console.log('📅 Using cached calendar data:', cacheKey);
       return cached as { events: Event[]; total?: number; hasMore?: boolean };
     }
     
-    const requestBody: any = { user_email };
+    const requestBody: any = {};
     
     // Add pagination and date filtering
     if (options?.start_date) requestBody.start_date = options.start_date;
@@ -426,34 +446,37 @@ class ApiService {
       method: "POST",
       body: JSON.stringify(requestBody),
     });
-    console.log('📅 API getCalendar raw response:', { 
-      eventsCount: rawResult.calendar?.length || 0,
-      total: rawResult.total,
-      hasMore: rawResult.hasMore 
-    });
     
     // Transform the API response to match frontend Event interface
     const eventsArray = rawResult.calendar || rawResult.events || rawResult || [];
-    console.log('📅 Events array to transform:', eventsArray.length, 'events');
     
     const transformedEvents: Event[] = eventsArray.map((event: any, index: number) => {
-      const imgUrl = event.imageUrl || event.image;
-      if (imgUrl) {
-        console.log('🖼️ Transforming calendar event image:', { 
-          eventId: event.id, 
-          title: event.title || event.name,
-          imageUrl: event.imageUrl, 
-          image: event.image, 
-          finalImg: imgUrl 
+      // Check all possible image field variations from backend
+      const imgUrl = event.imageUrl || event.image || event.image_url || event.img;
+      
+      // Preserve the original backend event ID
+      const backendEventId = event.event_id || event.id || event._id;
+      
+      // Create unique display ID using title and index to prevent React duplicate key errors
+      const baseId = backendEventId || event.title || event.name;
+      const uniqueId = baseId ? `${baseId}-${index}` : `event-${Date.now()}-${Math.random()}`;
+      
+      // Log image transformation for debugging
+      if (index === 0) {
+        console.log('📸 Calendar event image fields:', {
+          imageUrl: event.imageUrl,
+          image: event.image,
+          image_url: event.image_url,
+          img: event.img,
+          organization_image: event.organization_image,
+          organizationImage: event.organizationImage,
+          resolved: imgUrl
         });
       }
       
-      // Create unique ID using title and index to prevent duplicates
-      const baseId = event.id || event.title || event.name;
-      const uniqueId = baseId ? `${baseId}-${index}` : `event-${Date.now()}-${Math.random()}`;
-      
       return {
         id: uniqueId,
+        backendEventId: backendEventId, // Store original ID for API calls
         title: String(event.name || event.title || 'Untitled Event'),
         date: String(event.start_date || event.date || new Date().toISOString()),
         time: String(event.time || this.extractTimeFromDate(event.start_date) || ''),
@@ -461,10 +484,11 @@ class ApiService {
         description: String(event.description || ''),
         location: String(event.location_name || event.location || event.location_address || ''),
         organization_id: event.organization_id ? String(event.organization_id) : undefined,
+        organization_image: event.organization_image || event.organizationImage ? String(event.organization_image || event.organizationImage) : undefined,
         color: event.color ? String(event.color) : undefined,
         img: imgUrl ? String(imgUrl) : undefined,
         isRecurring: Boolean(event.isRecurring || false)
-      };
+      } as any;
     });
     
     const result = {
@@ -475,7 +499,6 @@ class ApiService {
     
     // Cache the result for 24 hours (86400000 ms)
     apiCache.set(cacheKey, result, 86400000);
-    console.log('📅 Cached calendar data:', cacheKey);
     
     return result;
   }
@@ -522,32 +545,39 @@ class ApiService {
   }
 
   async getTodayEvents(): Promise<{ events: Event[] }> {
-    console.log('📅 getTodayEvents: Making API call to /today-events');
     try {
       const rawResult = await this.makeRequest<any>("/today-events", {}, { cacheKey: "today-events", cacheTTL: 30000 });
       
       // Transform the API response to match frontend Event interface
       const eventsArray = Array.isArray(rawResult) ? rawResult : (rawResult.events || rawResult || []);
-      console.log('📅 getTodayEvents: Raw response type:', Array.isArray(rawResult) ? 'array' : 'object', 'Events to transform:', eventsArray.length);
       
       const transformedEvents: Event[] = eventsArray.map((event: any, index: number) => {
-        const imgUrl = event.imageUrl || event.image;
-        if (imgUrl) {
-          console.log('🖼️ Transforming event image:', { 
-            eventId: event.id, 
-            title: event.title || event.name,
-            imageUrl: event.imageUrl, 
-            image: event.image, 
-            finalImg: imgUrl 
+        // Check all possible image field variations from backend
+        const imgUrl = event.imageUrl || event.image || event.image_url || event.img;
+        
+        // Preserve the original backend event ID
+        const backendEventId = event.event_id || event.id || event._id;
+        
+        // Create unique display ID using title and index to prevent React duplicate key errors
+        const baseId = backendEventId || event.title || event.name;
+        const uniqueId = baseId ? `${baseId}-${index}` : `event-${Date.now()}-${Math.random()}`;
+        
+        // Log image transformation for debugging
+        if (index === 0) {
+          console.log('📸 Today event image fields:', {
+            imageUrl: event.imageUrl,
+            image: event.image,
+            image_url: event.image_url,
+            img: event.img,
+            organization_image: event.organization_image,
+            organizationImage: event.organizationImage,
+            resolved: imgUrl
           });
         }
         
-        // Create unique ID using title and index to prevent duplicates
-        const baseId = event.id || event.title || event.name;
-        const uniqueId = baseId ? `${baseId}-${index}` : `event-${Date.now()}-${Math.random()}`;
-        
         return {
           id: uniqueId,
+          backendEventId: backendEventId, // Store original ID for API calls
           title: String(event.name || event.title || 'Untitled Event'),
           date: String(event.start_date || event.date || new Date().toISOString()),
           time: String(event.time || this.extractTimeFromDate(event.start_date) || ''),
@@ -555,16 +585,15 @@ class ApiService {
           description: String(event.description || ''),
           location: String(event.location_name || event.location || event.location_address || ''),
           organization_id: event.organization_id ? String(event.organization_id) : undefined,
+          organization_image: event.organization_image || event.organizationImage ? String(event.organization_image || event.organizationImage) : undefined,
           color: event.color ? String(event.color) : undefined,
           img: imgUrl ? String(imgUrl) : undefined,
           isRecurring: Boolean(event.isRecurring || false)
-        };
+        } as any;
       });
       
-      console.log('📅 getTodayEvents: Success, transformed', transformedEvents.length, 'events');
       return { events: transformedEvents };
     } catch (error) {
-      console.error('📅 getTodayEvents: API call failed:', error);
       // Don't fallback to mock data here - let the error bubble up so components can handle it
       throw error;
     }
@@ -579,12 +608,13 @@ class ApiService {
       name: event.title, // Backend might use 'name' internally
       start_date: event.date,
       end_date: event.date, // Use same date if no end date provided
-      time: event.time,
-      duration: event.duration,
-      location_name: event.location,
-      description: event.description,
-      color: event.color,
-      image: event.img,
+      time: event.time || null,
+      duration: event.duration || null,
+      location: event.location || null,
+      description: event.description || null,
+      color: event.color || null,
+      image_url: event.img || null,
+      category: 'Personal', // Mark as personal event
       isRecurring: event.isRecurring || false
     };
     
@@ -595,18 +625,21 @@ class ApiService {
       body: JSON.stringify(backendEvent),
     });
     
+    console.log('📥 createUserEvent: Backend response:', JSON.stringify(response, null, 2));
+    
     // Transform backend response back to frontend Event format
     return {
-      id: response.id || response._id || `event-${Date.now()}`,
-      title: response.name || response.title,
+      id: response.event_id || response.id || response._id || `event-${Date.now()}`,
+      title: response.title || response.name || 'Untitled Event',
       date: response.start_date || response.date,
-      time: response.time,
-      duration: response.duration,
-      location: response.location_name || response.location,
-      description: response.description,
-      color: response.color,
-      img: response.image || response.img,
-      isRecurring: response.isRecurring
+      time: response.time || 'TBD',
+      duration: response.duration || 0,
+      location: response.location || 'TBD',
+      description: response.description || '',
+      color: response.color || '#7B5CFF',
+      category: response.category || 'Personal',
+      img: response.image_url || response.img || '',
+      isRecurring: response.isRecurring || false
     };
   }
 
@@ -623,7 +656,35 @@ class ApiService {
     if (filters?.start_date) query.append("start_date", filters.start_date);
     if (filters?.end_date) query.append("end_date", filters.end_date);
     const queryString = query.toString();
-    return this.makeRequest(`/users/${userId}/events${queryString ? `?${queryString}` : ''}`);
+    
+    console.log('📥 Fetching user events for userId:', userId);
+    const response: any = await this.makeRequest(`/users/${userId}/events${queryString ? `?${queryString}` : ''}`);
+    
+    // Transform backend response to frontend Event interface
+    const eventsArray = Array.isArray(response) ? response : (response.events || []);
+    
+    const transformedEvents = eventsArray.map((event: any, index: number) => {
+      const backendEventId = event.event_id || event.id || event._id;
+      const uniqueId = backendEventId ? `${backendEventId}-${index}` : `user-event-${Date.now()}-${index}`;
+      
+      return {
+        id: uniqueId,
+        backendEventId: backendEventId,
+        title: event.title || event.name || 'Untitled Event',
+        date: event.start_date || event.date || new Date().toISOString().split('T')[0],
+        time: event.time || 'TBD',
+        duration: event.duration || 0,
+        description: event.description || '',
+        location: event.location || event.location_name || 'TBD',
+        img: event.image_url || event.image || event.img || '',
+        color: event.color || '#7B5CFF',
+        category: event.category || 'Personal',
+        isRecurring: event.isRecurring || false,
+      } as any;
+    });
+    
+    console.log('✅ Transformed user events:', transformedEvents.length);
+    return { events: transformedEvents };
   }
 
   async updateUserEvent(userId: string, eventId: string, event: Partial<Event>): Promise<Event> {
@@ -671,37 +732,116 @@ class ApiService {
     });
   }
 
-  // Save/Unsave Events (using the same endpoints - saved events are user events)
-  async saveUserEvent(userId: string, eventId: string, eventData: any): Promise<Event> {
-    // When saving an event, we create it as a user event
-    // Don't include 'id' in the body - the backend will generate it
-    return this.makeRequest(`/users/${userId}/events`, {
+  // Save/Unsave Events - Backend now uses users/{uid}/savedEvents/{eventId}
+  async saveUserEvent(eventId: string, eventData: any): Promise<Event> {
+    // Backend uses UID from JWT token and stores in savedEvents subcollection
+    // POST /users/me/saved with event data
+    const payload = { 
+      eventId: eventId,      // Backend expects 'eventId' (camelCase)
+      event_id: eventId,     // Also send snake_case for compatibility
+      ...eventData 
+    };
+    
+    console.log('💾 saveUserEvent payload:', JSON.stringify(payload, null, 2));
+    
+    return this.makeRequest(`/users/me/saved`, {
       method: "POST",
-      body: JSON.stringify(eventData),
+      body: JSON.stringify(payload),
     });
   }
 
-  async unsaveUserEvent(userId: string, eventId: string): Promise<void> {
-    // When unsaving, we delete it from user events
-    return this.makeRequest(`/users/${userId}/events/${eventId}`, {
+  async unsaveUserEvent(eventId: string): Promise<void> {
+    // DELETE /users/me/saved/{event_id} - event_id in path
+    return this.makeRequest(`/users/me/saved/${eventId}`, {
       method: "DELETE",
     });
   }
 
-  async getSavedEvents(userId: string): Promise<{ events: Event[] }> {
-    // Get all user events (which includes saved events)
-    return this.makeRequest(`/users/${userId}/events`);
+  async getSavedEvents(): Promise<{ events: Event[] }> {
+    // GET /users/me/saved - Backend uses UID from JWT token
+    console.log('📥 Fetching saved events from /users/me/saved');
+    const response: any = await this.makeRequest(`/users/me/saved`);
+    
+    console.log('📥 Saved events RAW response:', response);
+    console.log('📥 Response type:', typeof response);
+    console.log('📥 Response keys:', response ? Object.keys(response) : 'null');
+    console.log('📥 Is array?', Array.isArray(response));
+    console.log('📥 Has events property?', response && 'events' in response);
+    console.log('📥 Has saved_events property?', response && 'saved_events' in response);
+    
+    // Check if response is directly an array (backend might return array directly)
+    let eventsArray = [];
+    if (Array.isArray(response)) {
+      console.log('📥 Response is direct array, length:', response.length);
+      eventsArray = response;
+    } else if (response && Array.isArray(response.events)) {
+      console.log('📥 Response has events property, length:', response.events.length);
+      eventsArray = response.events;
+    } else if (response && Array.isArray(response.saved_events)) {
+      console.log('📥 Response has saved_events property, length:', response.saved_events.length);
+      eventsArray = response.saved_events;
+    } else if (response && typeof response === 'object') {
+      // Try to find any array property in the response
+      console.log('📥 Searching for array in response object...');
+      for (const key of Object.keys(response)) {
+        if (Array.isArray(response[key])) {
+          console.log(`📥 Found array at key "${key}", length:`, response[key].length);
+          eventsArray = response[key];
+          break;
+        }
+      }
+      if (eventsArray.length === 0) {
+        console.log('⚠️ No array found in response object');
+        console.log('📥 Full response structure:', JSON.stringify(response, null, 2));
+        return { events: [] };
+      }
+    } else {
+      console.log('⚠️ Unexpected response format for saved events');
+      console.log('📥 Full response:', JSON.stringify(response, null, 2));
+      return { events: [] };
+    }
+    
+    // Transform backend saved events to match Event interface
+    const transformedEvents = eventsArray.map((event: any, index: number) => {
+      console.log(`📥 Transforming event ${index}:`, JSON.stringify(event, null, 2));
+      return {
+        id: event.event_id || event.id || `saved-${index}`,
+        title: event.title || event.name || 'Untitled Event',
+        date: event.start_date || event.date || new Date().toISOString().split('T')[0],
+        time: event.time || 'TBD',
+        duration: event.duration || 0,
+        description: event.description || '',
+        location: event.location || 'TBD',
+        img: event.image_url || event.img || '',
+        color: event.color || '#7B5CFF',
+        category: event.category || 'Personal',
+        isRecurring: event.isRecurring || false,
+      };
+    });
+    
+    console.log('✅ Transformed saved events:', transformedEvents.length);
+    return { events: transformedEvents };
   }
 
-  async getTutoringRecommendations(user_email: string): Promise<{ sessions: TutoringSession[] }> {
+  async getTutoringRecommendations(): Promise<{ sessions: TutoringSession[] }> {
+    // Backend now uses UID from JWT token, no need to pass user_email
     return this.makeRequest("/recommendations/tutoring", {
       method: "POST",
-      body: JSON.stringify({ user_email }),
+      body: JSON.stringify({}),
     });
   }
 
-  async getUserProfile(email: string): Promise<UserProfile> {
-    const response = await this.makeRequest<any>(`/profile/${encodeURIComponent(email)}`, {
+  async getUserProfile(): Promise<UserProfile> {
+    // Get current user UID from Firebase Auth
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+    
+    // Use /profile/{uid} endpoint with Firebase UID
+    const response = await this.makeRequest<any>(`/profile/${currentUser.uid}`, {
       method: 'GET'
     });
     // Handle both direct UserProfile and wrapped { user: UserProfile } responses
@@ -709,8 +849,17 @@ class ApiService {
   }
 
   async updateUserProfile(profile: UserProfile): Promise<UserProfile> {
-    return this.makeRequest(`/profile`, {
-      method: "POST",
+    // Get current user UID from Firebase Auth
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+    
+    if (!currentUser) {
+      throw new Error('No authenticated user found');
+    }
+    
+    // Use PUT /profile/{uid} endpoint with Firebase UID
+    return this.makeRequest(`/profile/${currentUser.uid}`, {
+      method: "PUT",
       body: JSON.stringify(profile),
     });
   }
@@ -718,6 +867,13 @@ class ApiService {
   async getHealth(): Promise<{ status: string }> {
     const response = await this.makeRequest<{ message: string; version: string }>("/", {}, { cacheKey: "health", cacheTTL: 5000, useCache: true });
     return { status: response.message ? 'ok' : 'error' };
+  }
+
+  // Universities
+  async getUniversities(): Promise<University[]> {
+    return this.makeRequest("/universities", {
+      method: "GET",
+    });
   }
 
   // Auth methods
@@ -736,20 +892,21 @@ class ApiService {
   }
 
   // Profile methods (aliases for consistency)
-  async getProfile(email: string): Promise<{ user: UserProfile }> {
-    const profile = await this.getUserProfile(email);
+  async getProfile(): Promise<{ user: UserProfile }> {
+    const profile = await this.getUserProfile();
     return { user: profile };
   }
 
-  async updateProfile(email: string, updates: UserProfile): Promise<UserProfile> {
+  async updateProfile(updates: UserProfile): Promise<UserProfile> {
     return this.updateUserProfile(updates);
   }
 
   // Recommendation methods
-  async getEventRecommendations(email: string): Promise<{ recommendations: Event[] }> {
-    return this.makeRequest("/recommendations/events", {
+  async getEventRecommendations(): Promise<{ recommendations: Event[] }> {
+    // Backend now uses UID from JWT token, no need to pass user_email
+    return this.makeRequest("/recommendations", {
       method: "POST",
-      body: JSON.stringify({ user_email: email }),
+      body: JSON.stringify({}),
     });
   }
 
@@ -828,6 +985,141 @@ class ApiService {
       });
       return mockByCategory;
     }
+  }
+
+  // Save/Unsave Scholarship methods
+  async saveScholarship(scholarship: any): Promise<void> {
+    const uid = `scholarship-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('💾 Saving scholarship:', scholarship.id, 'with uid:', uid);
+    return this.makeRequest('/users/me/scholarships', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...scholarship, // Include entire scholarship data first
+        scholarshipId: scholarship.id, // Then override with specific fields
+        id: scholarship.id,
+        uid // uid comes last to ensure it's not overwritten
+      }),
+    });
+  }
+
+  async unsaveScholarship(scholarshipId: string): Promise<void> {
+    console.log('🗑️ Unsaving scholarship:', scholarshipId);
+    return this.makeRequest(`/users/me/scholarships/${scholarshipId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Save/Unsave Event methods
+  async saveEvent(event: any): Promise<void> {
+    const uid = `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('💾 Saving event:', event.id, 'with uid:', uid);
+    return this.makeRequest('/users/me/events', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...event, // Include entire event data first
+        eventId: event.id, // Then override with specific fields
+        id: event.id,
+        uid // uid comes last to ensure it's not overwritten
+      }),
+    });
+  }
+
+  async unsaveEvent(eventId: string): Promise<void> {
+    console.log('🗑️ Unsaving event:', eventId);
+    return this.makeRequest(`/users/me/events/${eventId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Save/Unsave Organization methods
+  async saveOrganization(organization: any): Promise<void> {
+    const uid = `organization-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    console.log('💾 Saving organization:', organization.id, 'with uid:', uid);
+    return this.makeRequest('/users/me/organizations', {
+      method: 'POST',
+      body: JSON.stringify({
+        ...organization, // Include entire organization data first
+        organizationId: organization.id, // Then override with specific fields
+        id: organization.id,
+        uid // uid comes last to ensure it's not overwritten
+      }),
+    });
+  }
+
+  async unsaveOrganization(organizationId: string): Promise<void> {
+    console.log('🗑️ Unsaving organization:', organizationId);
+    return this.makeRequest(`/users/me/organizations/${organizationId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Get all saved items (scholarships, organizations, personal events)
+  async getSavedItems(): Promise<{
+    scholarships: any[];
+    organizations: any[];
+    personal_events: any[];
+  }> {
+    console.log('📥 Fetching all saved items');
+    const response = await this.makeRequest('/users/me/saved-items', {
+      method: 'GET',
+    });
+    
+    // Log the FULL response structure for debugging
+    // console.log('📥 RAW RESPONSE:', JSON.stringify(response, null, 2));
+    // console.log('📥 Response type:', typeof response);
+    // console.log('📥 Response is array?', Array.isArray(response));
+    // console.log('📥 Response keys:', response ? Object.keys(response) : 'null/undefined');
+    
+    // Try different possible structures
+    let scholarships: any[] = [];
+    let organizations: any[] = [];
+    let events: any[] = [];
+    
+    const resp = response as any;
+    
+    // Try to find scholarships in various locations
+    const scholarshipsRaw = resp?.savedEvents?.scholarships || resp?.scholarships || [];
+    const organizationsRaw = resp?.savedEvents?.saved_events || resp?.organizations || [];
+    const eventsRaw = resp?.savedEvents?.events || resp?.events || resp?.personal_events || [];
+    
+    console.log('📥 Raw arrays found:');
+    console.log('  - Scholarships array length:', scholarshipsRaw.length);
+    console.log('  - Organizations array length:', organizationsRaw.length);
+    console.log('  - Events array length:', eventsRaw.length);
+    
+    if (scholarshipsRaw.length > 0) {
+      console.log('  - First scholarship:', JSON.stringify(scholarshipsRaw[0], null, 2));
+    }
+    if (organizationsRaw.length > 0) {
+      console.log('  - First organization:', JSON.stringify(organizationsRaw[0], null, 2));
+    }
+    if (eventsRaw.length > 0) {
+      console.log('  - First event:', JSON.stringify(eventsRaw[0], null, 2));
+    }
+    
+    // Map with proper IDs - prioritize uid field
+    scholarships = scholarshipsRaw.map((item: any) => ({
+      ...item,
+      id: item.uid || item.doc?.id || item.scholarshipId || item.scholarship_id || item.id || `scholarship-${Math.random()}`
+    }));
+    
+    organizations = organizationsRaw.map((item: any) => ({
+      ...item,
+      id: item.uid || item.doc?.id || item.organizationId || item.organization_id || item.id || `org-${Math.random()}`
+    }));
+    
+    events = eventsRaw.map((item: any) => ({
+      ...item,
+      id: item.uid || item.doc?.id || item.eventId || item.event_id || item.id || `event-${Math.random()}`
+    }));
+    
+    console.log('📥 ✅ Final counts - Scholarships:', scholarships.length, 'Organizations:', organizations.length, 'Events:', events.length);
+    
+    return {
+      scholarships,
+      organizations,
+      personal_events: events
+    };
   }
 
   cancelRequest(endpoint: string) {

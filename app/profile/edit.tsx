@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Stack } from 'expo-router';
 import Colors from '@/constants/colors';
 import { useUserStore } from '@/store/user-store';
-import { Check } from 'lucide-react-native';
+import { CheckIcon as Check } from '@/components/icons';
 import INTERESTS from '@/constants/interests';
 
 export default function EditProfileScreen() {

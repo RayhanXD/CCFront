@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import { AlertTriangle, RefreshCw } from 'lucide-react-native';
+import { AlertTriangleIcon as AlertTriangle, RefreshCwIcon as RefreshCw } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 
 interface NetworkErrorBannerProps {

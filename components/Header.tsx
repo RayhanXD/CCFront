@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LogOut } from 'lucide-react-native';
+import { LogOutIcon as LogOut } from '@/components/icons';
 import Colors from '@/constants/colors';
 
 const Header = () => {

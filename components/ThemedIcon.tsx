@@ -1,18 +1,48 @@
 import React from 'react';
 import { useTheme } from '@/contexts/theme-context';
 import { 
-  Home, BookOpen, Calendar, Search, User, ChevronLeft, ChevronRight,
-  Settings, Heart, Award, Edit, MessageSquare, Send, Bot, Info, History,
-  Trash2, Copy, ArrowLeft, Mail, FileText, Shield, Bell, Lock, RefreshCw,
-  AlertTriangle, Bookmark, Plus, X, Shuffle, ExternalLink, Tag, Clock, Share2
-} from 'lucide-react-native';
+  HomeIcon, BookOpenIcon, CalendarIconComponent, SearchIcon, UserIcon, ChevronLeftIcon, ChevronRightIcon,
+  SettingsIcon, HeartIcon, AwardIcon, EditIcon, MessageSquareIcon, SendIcon, BotIcon, InfoIcon, HistoryIcon,
+  Trash2Icon, CopyIcon, ArrowLeftIcon, MailIcon, FileTextIcon, ShieldIcon, BellIcon, LockIcon, RefreshCwIcon,
+  AlertTriangleIcon, BookmarkIcon, PlusIcon, XIcon, ShuffleIcon, ExternalLinkIcon, TagIcon, ClockIcon, Share2Icon
+} from '@/components/icons';
 
 // Map of available icons
 const icons = {
-  Home, BookOpen, Calendar, Search, User, ChevronLeft, ChevronRight,
-  Settings, Heart, Award, Edit, MessageSquare, Send, Bot, Info, History,
-  Trash2, Copy, ArrowLeft, Mail, FileText, Shield, Bell, Lock, RefreshCw,
-  AlertTriangle, Bookmark, Plus, X, Shuffle, ExternalLink, Tag, Clock, Share2
+  Home: HomeIcon,
+  BookOpen: BookOpenIcon,
+  Calendar: CalendarIconComponent,
+  Search: SearchIcon,
+  User: UserIcon,
+  ChevronLeft: ChevronLeftIcon,
+  ChevronRight: ChevronRightIcon,
+  Settings: SettingsIcon,
+  Heart: HeartIcon,
+  Award: AwardIcon,
+  Edit: EditIcon,
+  MessageSquare: MessageSquareIcon,
+  Send: SendIcon,
+  Bot: BotIcon,
+  Info: InfoIcon,
+  History: HistoryIcon,
+  Trash2: Trash2Icon,
+  Copy: CopyIcon,
+  ArrowLeft: ArrowLeftIcon,
+  Mail: MailIcon,
+  FileText: FileTextIcon,
+  Shield: ShieldIcon,
+  Bell: BellIcon,
+  Lock: LockIcon,
+  RefreshCw: RefreshCwIcon,
+  AlertTriangle: AlertTriangleIcon,
+  Bookmark: BookmarkIcon,
+  Plus: PlusIcon,
+  X: XIcon,
+  Shuffle: ShuffleIcon,
+  ExternalLink: ExternalLinkIcon,
+  Tag: TagIcon,
+  Clock: ClockIcon,
+  Share2: Share2Icon
 };
 
 type IconName = keyof typeof icons;

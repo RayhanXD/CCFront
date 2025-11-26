@@ -94,11 +94,11 @@ export const useUserStore = create<UserState>()(
         try {
           const signUpResponse = await apiService.signUp(userData);
           
-          // Fetch user profile data
-          const profileResponse = await apiService.getProfile(userData.email);
+          // Fetch user profile data (backend uses UID from JWT token)
+          const profileResponse = await apiService.getProfile();
           
-          // Fetch event recommendations
-          const eventsResponse = await apiService.getEventRecommendations(userData.email);
+          // Fetch event recommendations (backend uses UID from JWT token)
+          const eventsResponse = await apiService.getEventRecommendations();
           
           // Fetch calendar events
           const calendarResponse = await apiService.getCalendarEvents();
@@ -157,11 +157,11 @@ export const useUserStore = create<UserState>()(
           // Sign in to get user data
           const response = await apiService.signIn({ email }) as { user: any };
           
-          // Fetch event recommendations
-          const eventsResponse = await apiService.getEventRecommendations(email);
+          // Fetch event recommendations (backend uses UID from JWT token)
+          const eventsResponse = await apiService.getEventRecommendations();
           
-          // Fetch organization recommendations for scholarship generation
-          const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          // Fetch organization recommendations for scholarship generation (backend uses UID from JWT token)
+          const orgsResponse = await apiService.getOrganizationRecommendations();
           
           // Fetch calendar events
           const calendarResponse = await apiService.getCalendarEvents();
@@ -214,28 +214,69 @@ export const useUserStore = create<UserState>()(
 
       signUpWithEmailPassword: async (email: string, password: string, profile: ApiUserProfile) => {
         set({ isLoading: true, error: null });
+        let firebaseUser: any = null;
+        
         try {
-          await createUserWithEmailAndPassword(auth, email, password);
-          // Sync profile to backend
-          await apiService.signUp({ ...profile, email });
-          
-          // Validate required fields
+          // Validate required fields before attempting signup
           if (!profile.name || !profile.major || !profile.year) {
-            throw new Error('Missing required profile information');
+            throw new Error('Missing required profile information: name, major, and year are required');
           }
           
+          console.log('🔐 Step 1: Creating Firebase user...');
+          // Step 1: Create Firebase user
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          firebaseUser = userCredential.user;
+          console.log('✅ Firebase user created:', firebaseUser.uid);
+          
+          console.log('🔐 Step 2: Syncing profile to backend...');
+          // Step 2: Sync profile to backend with UID
+          // Filter out null values for optional fields
+          const profileData = { ...profile, email, uid: firebaseUser.uid };
+          const cleanedProfile = Object.fromEntries(
+            Object.entries(profileData).filter(([_, value]) => value !== null)
+          ) as ApiUserProfile;
+          const backendResponse = await apiService.signUp(cleanedProfile);
+          console.log('✅ Backend user created:', backendResponse);
+          
+          console.log('🔐 Step 3: Setting up local profile...');
+          // Step 3: Set up local profile
           const localProfile: UserProfile = {
             name: profile.name,
+            surname: profile.surname,
             email,
             major: profile.major,
             year: profile.year,
             interests: profile.interests || [],
             onboardingComplete: true,
           };
+          
           set({ userProfile: localProfile, isOnboardingComplete: true, isLoading: false });
+          console.log('✅ Signup completed successfully');
           return true;
+          
         } catch (error) {
-          set({ error: error instanceof Error ? error.message : 'Sign up failed', isLoading: false });
+          console.error('❌ Signup error:', error);
+          
+          // If backend sync failed but Firebase user was created, delete the Firebase user
+          if (firebaseUser) {
+            console.log('⚠️ Rolling back Firebase user creation...');
+            try {
+              await firebaseUser.delete();
+              console.log('✅ Firebase user rolled back successfully');
+            } catch (deleteError) {
+              console.error('❌ Failed to rollback Firebase user:', deleteError);
+              // If rollback fails, sign out to clean up
+              try {
+                await signOut(auth);
+              } catch (signOutError) {
+                console.error('❌ Failed to sign out:', signOutError);
+              }
+            }
+          }
+          
+          const errorMessage = error instanceof Error ? error.message : 'Sign up failed';
+          set({ error: errorMessage, isLoading: false });
+          console.error('❌ Final signup error:', errorMessage);
           return false;
         }
       },
@@ -265,40 +306,30 @@ export const useUserStore = create<UserState>()(
           await signInWithEmailAndPassword(auth, email, password);
           set({ currentLoadingStep: 1 });
           
-          // Step 2: Fetch user profile data
+          // Step 2: Fetch user profile data (backend uses UID from JWT token)
           console.log('🔄 signInWithEmailPassword: Fetching profile...');
-          const response = await apiService.getProfile(email);
-          console.log('🔍 signInWithEmailPassword: Profile response:', JSON.stringify(response, null, 2));
+          const response = await apiService.getProfile();
           set({ currentLoadingStep: 2 });
           
           // Validate profile data - handle both wrapped and unwrapped responses
           const userData = response?.user || response;
-          console.log('🔍 signInWithEmailPassword: Extracted user data:', JSON.stringify(userData, null, 2));
           
           if (!userData || !userData.name || !userData.major || !userData.year) {
             console.error('❌ signInWithEmailPassword: Invalid profile data received');
-            console.error('   Response:', JSON.stringify(response, null, 2));
-            console.error('   User data:', JSON.stringify(userData, null, 2));
-            console.error('   Missing required fields:', {
-              hasName: !!userData?.name,
-              hasMajor: !!userData?.major,
-              hasYear: !!userData?.year
-            });
             throw new Error('Failed to load user profile. Required profile information is missing.');
           }
           
-          // Step 3: Fetch event recommendations
+          // Step 3: Fetch event recommendations (backend uses UID from JWT token)
           console.log('🔄 signInWithEmailPassword: Fetching events...');
-          const eventsResponse = await apiService.getEventRecommendations(email);
+          const eventsResponse = await apiService.getEventRecommendations();
           set({ currentLoadingStep: 3 });
           
-          // Step 4: Fetch organization recommendations for scholarship generation
+          // Step 4: Fetch organization recommendations for scholarship generation (backend uses UID from JWT token)
           console.log('🔄 signInWithEmailPassword: Fetching organizations...');
-          const orgsResponse = await apiService.getOrganizationRecommendations(email);
+          const orgsResponse = await apiService.getOrganizationRecommendations();
           set({ currentLoadingStep: 4 });
           
           // Step 5: Fetch calendar events
-          console.log('🔄 signInWithEmailPassword: Fetching calendar...');
           const calendarResponse = await apiService.getCalendarEvents();
           const todayEventsResponse = await apiService.getTodayEvents();
           set({ currentLoadingStep: 5 });
@@ -333,7 +364,7 @@ export const useUserStore = create<UserState>()(
             upcomingEvents: (todayEventsResponse.events || []),
           };
           
-          console.log('✅ signInWithEmailPassword: Profile loaded successfully:', localProfile.name);
+          console.log('✅ signInWithEmailPassword: Profile loaded successfully');
           
           // Complete loading
           set({ 
@@ -366,32 +397,25 @@ export const useUserStore = create<UserState>()(
       loadUserProfile: async (email: string) => {
         set({ isLoading: true, error: null });
         try {
-          console.log('🔄 loadUserProfile: Starting profile load for', email);
+          console.log('🔄 loadUserProfile: Starting profile load (backend uses UID from JWT token)');
           
-          // Fetch user profile data
-          const response = await apiService.getProfile(email) as { user: any };
-          console.log('🔍 loadUserProfile API response:', response);
-          console.log('🔍 loadUserProfile response.user:', response.user);
+          // Fetch user profile data (backend uses UID from JWT token)
+          const response = await apiService.getProfile() as { user: any };
           
-          // Fetch event recommendations
-          const eventsResponse = await apiService.getEventRecommendations(email);
-          console.log('🔍 loadUserProfile events:', eventsResponse);
+          // Fetch event recommendations (backend uses UID from JWT token)
+          const eventsResponse = await apiService.getEventRecommendations();
           
-          // Fetch organization recommendations for scholarship generation
-          const orgsResponse = await apiService.getOrganizationRecommendations(email);
-          console.log('🔍 loadUserProfile orgs:', orgsResponse);
+          // Fetch organization recommendations for scholarship generation (backend uses UID from JWT token)
+          const orgsResponse = await apiService.getOrganizationRecommendations();
           
           // Fetch calendar events
           const calendarResponse = await apiService.getCalendarEvents();
-          console.log('🔍 loadUserProfile calendar:', calendarResponse);
           
           // Fetch today's events
           const todayEventsResponse = await apiService.getTodayEvents();
-          console.log('🔍 loadUserProfile today events:', todayEventsResponse);
           
           // Convert API user profile to local user profile with real data
           const userData = response.user?.user || response.user || {};
-          console.log('🔍 loadUserProfile userData:', userData);
           
           // Check if we have valid user data
           if (!userData || !userData.name) {
@@ -428,7 +452,7 @@ export const useUserStore = create<UserState>()(
             upcomingEvents: (todayEventsResponse.events || []) as any,
           };
           
-          console.log('✅ loadUserProfile: Profile loaded successfully:', localProfile.name);
+          console.log('✅ loadUserProfile: Profile loaded successfully');
           set({ 
             userProfile: localProfile, 
             isOnboardingComplete: true,
@@ -474,7 +498,7 @@ export const useUserStore = create<UserState>()(
             ...updates
           };
           
-          await apiService.updateProfile(email, apiProfile);
+          await apiService.updateProfile(apiProfile);
           
           // Update local profile with changes
           const updatedLocalProfile: UserProfile = {

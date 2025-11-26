@@ -12,15 +12,15 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter, type Href } from 'expo-router';
 import { 
-  ChevronLeft, 
-  Calendar, 
-  Clock, 
-  MapPin, 
-  Share2, 
-  Bookmark,
-  Tag,
-  User
-} from 'lucide-react-native';
+  ChevronLeftIcon as ChevronLeft, 
+  CalendarIconComponent as Calendar, 
+  ClockIcon as Clock, 
+  MapPinIcon as MapPin, 
+  Share2Icon as Share2, 
+  BookmarkIcon as Bookmark,
+  TagIcon as Tag,
+  UserIcon as User
+} from '@/components/icons';
 import Colors from '@/constants/colors';
 import { useEventsStore } from '@/store/events-store';
 import BreadcrumbNavigation from '@/components/BreadcrumbNavigation';

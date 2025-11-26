@@ -1,16 +1,51 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { useRouter } from 'expo-router';
-import { ChevronRight, User, BookOpen, Award, Heart, Settings, Edit, Calendar } from 'lucide-react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { ChevronRightIcon as ChevronRight, UserIcon as User, BookOpenIcon as BookOpen, AwardIcon as Award, HeartIcon as Heart, SettingsIcon as Settings, EditIcon as Edit, CalendarIconComponent as Calendar } from '@/components/icons';
 import { useTheme } from '@/contexts/theme-context';
 import { useLanguage } from '@/contexts/language-context';
 import { useUserStore } from '@/store/user-store';
+import apiService from '@/lib/api';
 
 // Create a stable component that doesn't re-render unnecessarily
 export default function ProfileScreen() {
   const router = useRouter();
-  const { userProfile, signOutFirebase, savedOrganizations } = useUserStore();
+  const { userProfile, signOutFirebase } = useUserStore();
   const { theme, isDarkMode } = useTheme();
+  const [savedCounts, setSavedCounts] = useState({
+    organizations: 0,
+    scholarships: 0,
+    events: 0
+  });
+  
+  // Fetch saved items counts
+  const fetchSavedCounts = useCallback(async () => {
+    try {
+      console.log('📊 Fetching saved counts for profile...');
+      const savedItems = await apiService.getSavedItems();
+      const counts = {
+        organizations: savedItems.organizations?.length || 0,
+        scholarships: savedItems.scholarships?.length || 0,
+        events: savedItems.personal_events?.length || 0
+      };
+      console.log('📊 Updated saved counts:', counts);
+      setSavedCounts(counts);
+    } catch (error) {
+      console.error('Error fetching saved items:', error);
+    }
+  }, []);
+  
+  // Fetch on mount
+  useEffect(() => {
+    fetchSavedCounts();
+  }, [fetchSavedCounts]);
+  
+  // Refresh counts when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchSavedCounts();
+    }, [fetchSavedCounts])
+  );
   
   // If profile is not loaded yet, show a message
   // This should rarely happen since layout loads it, but it's a safety net
@@ -28,10 +63,10 @@ export default function ProfileScreen() {
   // Using a simple variable instead of useMemo to avoid dependency tracking issues
   const upcomingEvents = userProfile?.upcomingEvents || [];
   
-  // Use simple variables instead of useMemo to avoid dependency tracking issues
-  const savedOrgsCount = savedOrganizations?.length || 0;
-  const eventsCount = userProfile?.eventHistory?.length || 0;
-  const scholarshipsCount = userProfile?.scholarships?.length || 0;
+  // Use saved counts from API
+  const savedOrgsCount = savedCounts.organizations;
+  const savedEventsCount = savedCounts.events;
+  const scholarshipsCount = savedCounts.scholarships;
   
   // Simple function to format time - no need for useCallback
   const formatTime = (timeString: string) => {
@@ -162,8 +197,8 @@ export default function ProfileScreen() {
               <View style={[styles.statIconContainer, { backgroundColor: isDarkMode ? '#332815' : '#FFF2E5' }]}>
                 <BookOpen size={20} color="#FF8A00" />
               </View>
-              <Text style={[styles.statValue, { color: theme.text }]}>{eventsCount}</Text>
-              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Events</Text>
+              <Text style={[styles.statValue, { color: theme.text }]}>{savedEventsCount}</Text>
+              <Text style={[styles.statLabel, { color: theme.textSecondary }]}>Saved Events</Text>
             </View>
           </View>
         </View>

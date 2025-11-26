@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, StyleProp, ViewStyle, TextStyle } from 'react-native';
 import { useTheme } from '@/contexts/theme-context';
 import { useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeftIcon as ChevronLeft } from '@/components/icons';
 
 interface ThemedHeaderProps {
   title: string;
